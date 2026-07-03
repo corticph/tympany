@@ -1,21 +1,38 @@
-MIT License
+Tympany Proprietary Source-Available License
 
-Copyright (c) 2026 Corti
+Copyright (c) 2026 Corti. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This repository is publicly accessible, but Tympany is not open-source software.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Subject to the terms below, Corti grants you a limited, non-exclusive,
+non-transferable, revocable license to:
+
+1. download, install, run, and internally use the software for evaluation or
+   your own internal business purposes; and
+2. make copies of the software only as technically necessary to exercise the
+   permitted rights above.
+
+You may not, without prior written permission from Corti:
+
+1. modify, adapt, translate, or create derivative works of the software;
+2. distribute, sublicense, sell, lease, lend, or otherwise make the software
+   available to any third party;
+3. provide the software as a hosted or managed service for third parties;
+4. remove or alter any copyright, trademark, or proprietary notices; or
+5. use Corti's name, trademarks, or branding except to identify the origin of
+   the software.
+
+No patent rights, trademark rights, or other intellectual-property rights are
+granted except as expressly stated in this license. Public availability of the
+source code, including via GitHub, does not by itself grant any additional
+rights.
+
+If you want broader use, distribution, modification, OEM, or commercial
+licensing rights, contact help@corti.ai.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. IN NO EVENT
+SHALL CORTI BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN
+AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

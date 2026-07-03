@@ -1,0 +1,39 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Output directories
+tympany_out*/
+out/
+
+# Persisted analysis history
+web/data/
+
+# Environment / secrets
+.env
+.env.*
+*.local
+
+# macOS
+.DS_Store
+__MACOSX/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Test artefacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docs
+docs/

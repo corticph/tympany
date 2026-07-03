@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}Tympany — Create report{% endblock %}
+
+{% block head %}
+<style>
+  .field-label {
+    display:block; font-size:12px; color:hsl(var(--muted-foreground));
+    margin-bottom:6px; font-weight:500;
+  }
+  .text-input, .textarea-input {
+    width:100%; box-sizing:border-box; font-size:13px;
+    font-family:'Inter',sans-serif; color:hsl(var(--foreground));
+    background:hsl(var(--background)); border:1px solid hsl(var(--border));
+    border-radius:var(--radius); padding:9px 11px;
+  }
+  .textarea-input { min-height:150px; resize:vertical; line-height:1.5;
+    font-family:'SF Mono',ui-monospace,monospace; font-size:12.5px; }
+  .text-input:focus, .textarea-input:focus { outline:none; border-color:hsl(var(--ring)); }
+  .mode-tab {
+    background:transparent; border:1px solid hsl(var(--border));
+    color:hsl(var(--muted-foreground)); padding:7px 16px; cursor:pointer;
+    font-size:13px; font-weight:500; font-family:'Inter',sans-serif;
+  }
+  .mode-tab:first-child { border-radius:var(--radius) 0 0 var(--radius); }
+  .mode-tab:last-child  { border-radius:0 var(--radius) var(--radius) 0; border-left:none; }
+  .mode-tab.active { background:hsl(var(--foreground)); color:hsl(var(--background)); border-color:hsl(var(--foreground)); }
+  .hint { font-size:11.5px; color:hsl(var(--muted-foreground)); margin-top:6px; line-height:1.5; }
+  .setting-row { display:flex; align-items:center; gap:10px; font-size:13px; color:hsl(var(--foreground)); }
+  .terms-pane { display:none; }
+  .terms-pane.active { display:block; }
+  /* Per-sample rows (one example each) */
+  .sample-row { border:1px solid hsl(var(--border)); border-radius:var(--radius); padding:14px; margin-bottom:12px; }
+  .sample-row-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .sample-row-label { font-size:12px; font-weight:600; color:hsl(var(--foreground)); }
+  .sample-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .sample-grid .textarea-input { min-height:96px; }
+  .sample-remove {
+    background:transparent; border:1px solid hsl(var(--border));
+    color:hsl(var(--muted-foreground)); border-radius:var(--radius); cursor:pointer;
+    width:26px; height:26px; line-height:1; display:flex; align-items:center; justify-content:center;
+  }
+  .sample-remove:hover { color:hsl(var(--foreground)); border-color:hsl(var(--ring)); }
+</style>
+{% endblock %}
+
+{% block body %}
+{% set f = form or {} %}
+{% set mode = f.input_mode or "paste" %}
+{% set llm_label_color = "hsl(var(--foreground))" if llm_provider else "hsl(var(--muted-foreground))" %}
+<div class="page">
+  <div style="margin-bottom:18px;">
+    <a href="/create" style="font-size:13px; color:hsl(var(--muted-foreground)); text-decoration:none;">      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Back</a>
+  </div>
+
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-title">Create a report from text</div>
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); margin-bottom:20px; line-height:1.6;">
+      Provide reference and generated transcripts and Tympany will run
+      <strong style="color:hsl(var(--foreground));">BeWER</strong> to generate the report,
+      then classify every difference — ready to review just like an uploaded report.
+    </p>
+
+    <form method="post" action="/reports/new" enctype="multipart/form-data" id="report-form" data-processing="Generating &amp; analyzing report…">
+      <input type="hidden" name="input_mode" id="input_mode" value="{{ mode }}">
+
+      <!-- Input mode toggle -->
+      <div style="margin-bottom:18px; display:inline-flex;">
+        <button type="button" class="mode-tab {% if mode != 'csv' %}active{% endif %}" data-mode="paste">Paste text</button>
+        <button type="button" class="mode-tab {% if mode == 'csv' %}active{% endif %}" data-mode="csv">Upload CSV</button>
+      </div>
+
+      <!-- Paste mode: one sample (example) per row -->
+      <div id="pane-paste" style="{% if mode == 'csv' %}display:none;{% endif %}">
+        {% set samples = f.samples or [{"ref": "", "gen": ""}] %}
+        <div id="samples">
+          {% for s in samples %}
+          <div class="sample-row" data-row>
+            <div class="sample-row-head">
+              <span class="sample-row-label">Sample <span class="sample-n"></span></span>
+              <button type="button" class="sample-remove" title="Remove this sample" aria-label="Remove sample">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="sample-grid">
+              <div>
+                <label class="field-label">Reference text (ground truth)</label>
+                <textarea class="textarea-input" name="reference" placeholder="Paste one transcript — line breaks are collapsed to spaces">{{ s.ref or "" }}</textarea>
+              </div>
+              <div>
+                <label class="field-label">Generated text (model output)</label>
+                <textarea class="textarea-input" name="generated" placeholder="Paste one transcript — line breaks are collapsed to spaces">{{ s.gen or "" }}</textarea>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <button type="button" id="add-sample" class="btn btn-secondary btn-sm" style="margin-top:2px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add another sample
+        </button>
+        <div class="hint">Each sample is one example — a reference transcript paired with the generated one. Line breaks inside a box are collapsed to single spaces.</div>
+      </div>
+
+      <!-- CSV mode -->
+      <div id="pane-csv" style="{% if mode != 'csv' %}display:none;{% endif %}">
+        <label class="field-label" for="csv_file">CSV file</label>
+        <input class="text-input" type="file" name="csv_file" id="csv_file" accept=".csv">
+        <div class="hint">A CSV with a reference column and a generated column — <code>ref</code> and <code>gen</code> (the same ref/gen format BeWER consumes). One row per example.</div>
+      </div>
+
+      <!-- Medical terms (optional → computes Medical Term Recall) -->
+      {% set tmode = f.terms_mode or "none" %}
+      <div style="margin-top:22px;">
+        <label class="field-label" for="terms_mode">Medical terms <span style="opacity:0.7;">(optional — adds a Medical Term Recall metric)</span></label>
+        <select class="text-input" name="terms_mode" id="terms_mode" style="margin-bottom:10px;">
+          <option value="none"   {% if tmode == 'none'   %}selected{% endif %}>None</option>
+          <option value="paste"  {% if tmode == 'paste'  %}selected{% endif %}>Paste a list</option>
+          <option value="upload" {% if tmode == 'upload' %}selected{% endif %}>Upload a .txt file</option>
+          <option value="saved"  {% if tmode == 'saved'  %}selected{% endif %} {% if not saved_terms %}disabled{% endif %}>Use a saved list{% if not saved_terms %} (none saved){% endif %}</option>
+        </select>
+
+        <div id="terms-pane-paste" class="terms-pane">
+          <textarea class="textarea-input" name="terms_text" id="terms_text" placeholder="One medical term or phrase per line…" style="min-height:110px;">{{ f.terms_text or "" }}</textarea>
+          <div class="hint">One term or phrase per line (e.g. drug, device, or condition names).</div>
+        </div>
+        <div id="terms-pane-upload" class="terms-pane">
+          <input class="text-input" type="file" name="terms_file" id="terms_file" accept=".txt">
+          <div class="hint">A plain-text file with one term per line.</div>
+        </div>
+        <div id="terms-pane-saved" class="terms-pane">
+          <select class="text-input" name="terms_saved" id="terms_saved">
+            {% for t in saved_terms %}
+            <option value="{{ t.name }}" {% if f.terms_saved == t.name %}selected{% endif %}>{{ t.name }} ({{ t.count }} term{{ "" if t.count == 1 else "s" }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div id="terms-save-as" style="margin-top:10px;">
+          <label class="field-label" for="terms_save_as">Save this list as <span style="opacity:0.7;">(optional, reusable later)</span></label>
+          <input class="text-input" type="text" name="terms_save_as" id="terms_save_as" value="{{ f.terms_save_as or '' }}" placeholder="e.g. cardiology-v2">
+        </div>
+      </div>
+
+      <!-- Report name -->
+      <div style="margin-top:22px; margin-bottom:20px; max-width:360px;">
+        <label class="field-label" for="name">Report name <span style="opacity:0.7;">(optional)</span></label>
+        <input class="text-input" type="text" name="name" id="name" value="{{ f.name or '' }}" placeholder="report-YYYYMMDD-HHMMSS">
+      </div>
+
+      <div class="setting-row" style="margin-bottom:14px;">
+        <input type="checkbox" name="normalization" id="normalization" value="on" {% if f.normalization != 'off' %}checked{% endif %}>
+        <label for="normalization">Normalize text before scoring (lowercase text and strip punctuation, diacritics)</label>
+      </div>
+
+      <div class="setting-row" style="margin-bottom:24px;">
+        {% if llm_provider %}
+        <input type="checkbox" name="use_llm" id="use_llm" value="on" {% if f.use_llm == 'on' %}checked{% endif %}>
+        {% else %}
+        <input type="checkbox" name="use_llm" id="use_llm" value="on" disabled>
+        {% endif %}
+        <label for="use_llm" style="color:{{ llm_label_color }};">
+          Use Corti Agentic Framework for second pass of low confidence errors
+          {% if llm_provider %}
+            <span style="color:hsl(var(--muted-foreground)); font-size:12px;">(✔ API credentials configured)</span>
+          {% else %}
+            <span style="color:hsl(var(--muted-foreground)); font-size:12px;">— Corti API credentials not configured</span>
+          {% endif %}
+        </label>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button type="submit" formaction="/reports/generate" class="btn btn-secondary" id="generate-btn" data-processing="Generating report…">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 13 9 20 9"/><path d="M5 22V4a2 2 0 0 1 2-2h7l6 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/></svg>
+          Generate report
+        </button>
+        <button type="submit" formaction="/reports/new" class="btn btn-primary" id="submit-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Generate &amp; analyze
+        </button>
+      </div>
+      <p class="hint" style="margin-top:25px;"><strong>Generate report</strong> runs BeWER only (measure WER, CER, MTR)</p>
+      <p class="hint" style="margin-top:10px;"><strong>Generate &amp; analyze</strong> also classifies every difference (review errors and re-run BeWER)</p>
+    </form>
+  </div>
+
+  {% if draft %}
+  <div class="card" style="border-color:hsl(var(--variant-success-text));">
+    <div class="card-title" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--variant-success-text))" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      BeWER report generated
+    </div>
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); margin-bottom:14px; line-height:1.6;">
+      <strong style="color:hsl(var(--foreground));">{{ draft.name }}.bewer.json</strong> from {{ draft.rows }} example{{ "" if draft.rows == 1 else "s" }}.
+      <span style="margin-left:8px; font-family:'SF Mono',ui-monospace,monospace; font-size:12px;">
+        WER <strong style="color:hsl(var(--foreground));">{{ draft.wer or "—" }}</strong>
+        &nbsp;·&nbsp; CER <strong style="color:hsl(var(--foreground));">{{ draft.cer or "—" }}</strong>
+        {% if draft.mtr %}&nbsp;·&nbsp; MTR <strong style="color:hsl(var(--foreground));">{{ draft.mtr }}</strong>{% endif %}
+      </span>
+    </p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="/reports/generated/{{ draft.id }}/report" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="text-decoration:none;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        View report
+      </a>
+      <a href="/reports/generated/{{ draft.id }}/report/download?format=html" class="btn btn-secondary btn-sm" style="text-decoration:none;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download HTML
+      </a>
+      <a href="/reports/generated/{{ draft.id }}/report/download?format=json" class="btn btn-secondary btn-sm" style="text-decoration:none;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download JSON
+      </a>
+      <a href="/reports/generated/{{ draft.id }}/csv/download" class="btn btn-secondary btn-sm" style="text-decoration:none;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download CSV
+      </a>
+    </div>
+    <p class="hint" style="margin-top:12px;">Edit the text above and <strong>Generate report</strong> again to make another, or run <strong>Generate &amp; analyze</strong> to review it in Tympany. Saved under <a href="/create" style="color:hsl(var(--foreground));">Create History</a>.</p>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  // ── Input mode toggle ──────────────────────────────────────────────────────
+  (function () {
+    const hidden = document.getElementById("input_mode");
+    const tabs = document.querySelectorAll(".mode-tab");
+    const panePaste = document.getElementById("pane-paste");
+    const paneCsv = document.getElementById("pane-csv");
+
+    function setMode(mode) {
+      hidden.value = mode;
+      tabs.forEach(t => t.classList.toggle("active", t.dataset.mode === mode));
+      panePaste.style.display = mode === "csv" ? "none" : "";
+      paneCsv.style.display = mode === "csv" ? "" : "none";
+    }
+    tabs.forEach(t => t.addEventListener("click", () => setMode(t.dataset.mode)));
+  })();
+
+  // ── Per-sample rows (add / remove / renumber) ───────────────────────────────
+  (function () {
+    const container = document.getElementById("samples");
+    const addBtn = document.getElementById("add-sample");
+    if (!container || !addBtn) return;
+
+    function rows() { return container.querySelectorAll("[data-row]"); }
+
+    function renumber() {
+      const rs = rows();
+      const showRemove = rs.length > 1;
+      rs.forEach((row, i) => {
+        row.querySelector(".sample-n").textContent = i + 1;
+        // Keep the layout stable: hide (not remove) the × when only one row.
+        row.querySelector(".sample-remove").style.visibility = showRemove ? "visible" : "hidden";
+      });
+    }
+
+    function wireRemove(row) {
+      row.querySelector(".sample-remove").addEventListener("click", () => {
+        if (rows().length <= 1) return;  // always keep at least one row
+        row.remove();
+        renumber();
+      });
+    }
+
+    rows().forEach(wireRemove);
+
+    addBtn.addEventListener("click", () => {
+      const all = rows();
+      const clone = all[all.length - 1].cloneNode(true);
+      clone.querySelectorAll("textarea").forEach(t => { t.value = ""; });
+      container.appendChild(clone);
+      wireRemove(clone);
+      renumber();
+      clone.querySelector("textarea").focus();
+    });
+
+    renumber();
+  })();
+
+  // ── Medical terms input toggle ──────────────────────────────────────────────
+  (function () {
+    const sel = document.getElementById("terms_mode");
+    const panes = { paste: "terms-pane-paste", upload: "terms-pane-upload", saved: "terms-pane-saved" };
+    const saveAs = document.getElementById("terms-save-as");
+    function sync() {
+      const v = sel.value;
+      Object.entries(panes).forEach(([k, id]) => {
+        document.getElementById(id).classList.toggle("active", k === v);
+      });
+      // Saving only makes sense for a freshly provided list.
+      saveAs.style.display = (v === "paste" || v === "upload") ? "block" : "none";
+    }
+    sel.addEventListener("change", sync);
+    sync();
+  })();
+
+  // ── Submit state ────────────────────────────────────────────────────────────
+  (function () {
+    const form = document.getElementById("report-form");
+    const buttons = [...form.querySelectorAll('button[type="submit"]')];
+    const SPINNER = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>';
+    let clicked = null;
+    buttons.forEach(b => b.addEventListener("click", () => { clicked = b; }));
+
+    // Default the report name to report-<yyyymmdd>-<hhmmss> in the user's
+    // local time when left blank.
+    function defaultReportName() {
+      const d = new Date();
+      const p = n => String(n).padStart(2, "0");
+      const date = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
+      const time = `${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+      return `report-${date}-${time}`;
+    }
+
+    form.addEventListener("submit", function () {
+      const nameInput = document.getElementById("name");
+      if (nameInput && !nameInput.value.trim()) {
+        nameInput.value = defaultReportName();
+      }
+      const btn = clicked || document.getElementById("submit-btn");
+      if (btn.disabled) return;
+      const label = btn.id === "generate-btn" ? " Generating…" : " Analyzing…";
+      btn.innerHTML = SPINNER + label;
+      buttons.forEach(b => { b.disabled = true; });
+    });
+  })();
+</script>
+{% endblock %}
