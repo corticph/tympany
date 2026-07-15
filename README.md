@@ -345,14 +345,9 @@ The suite (`tests/`) covers the saved-term store, input validation, routing/redi
 
 ---
 
-## Licensing status
+## License
 
-The source is publicly readable on GitHub, but Tympany is not yet MIT-licensed
-or published to a public package index. The current state is
-source-available proprietary software: you can run it for evaluation or your
-own internal use, but broader rights such as modification or redistribution are
-not granted without permission. See [LICENSE](LICENSE) and
-[CONTRIBUTING.md](CONTRIBUTING.md).
+MIT — see [LICENSE](LICENSE).
 
 ---
 

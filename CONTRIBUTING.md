@@ -2,16 +2,13 @@
 
 Thanks for your interest in Tympany.
 
-This repository is publicly visible so teams can evaluate and run the software,
-but Tympany is currently released under a proprietary source-available license,
-not an open-source license. That has a few practical consequences:
+Tympany is open-source software released under the MIT License. Contributions
+are welcome. A few guidelines:
 
-- External pull requests, forks, patches, and derivative works are not accepted
-  under an implied open-source contribution model.
-- If you want to propose a change, please open an issue first describing the
-  problem, the intended use case, and the scope of the proposed fix.
-- If Corti wants to accept an external contribution, we will coordinate the
-  licensing and contribution terms explicitly before code is merged.
+- For non-trivial changes, please open an issue first describing the problem,
+  the intended use case, and the scope of the proposed fix.
+- Keep pull requests focused — one concern per PR.
+- All contributions are made under the MIT License.
 
 ## What to include in an issue
 
