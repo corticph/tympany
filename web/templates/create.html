@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Tympany — Create{% endblock %}
+
+{% block body %}
+<div class="page">
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-title">Create BeWER report</div>
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); margin:0; line-height:1.6;">
+      Enter or upload <strong style="color:hsl(var(--foreground));">reference</strong> and
+      <strong style="color:hsl(var(--foreground));">generated</strong> transcripts and Tympany will run
+      <strong style="color:hsl(var(--foreground));">BeWER</strong> to generate a WER report — ready to view, download, and analyze.
+    </p><br/>
+    <a href="/reports/new" class="btn btn-primary" style="text-decoration:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Create
+    </a>
+  </div>
+
+  <div class="card">
+    <div class="card-title">History</div>
+    {% if generated %}
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); margin-bottom:16px; line-height:1.6;">
+      BeWER reports you generated within Tympany. View or download them, or run a full analysis.
+    </p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Report</th>
+          <th>Created</th>
+          <th style="text-align:center;">Examples</th>
+          <th style="text-align:center;" title="Word / Character Error Rate">WER / CER</th>
+          <th style="text-align:center;" title="Medical Term Recall — higher is better">MTR</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in generated %}
+        <tr>
+          <td style="font-weight:500;">
+            <span class="row-name">
+              <a href="/reports/generated/{{ g.id }}/report" target="_blank" rel="noopener" style="color:hsl(var(--foreground)); text-decoration:none; font-weight:600;">{{ g.name }}.bewer.json</a>
+              <button type="button" class="rename-toggle" title="Rename" data-target="rng-{{ g.id }}" aria-label="Rename report">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+            </span>
+            <form id="rng-{{ g.id }}" class="rename-form" method="post" action="/reports/generated/{{ g.id }}/rename">
+              <input class="rename-input" type="text" name="name" value="{{ g.name }}" maxlength="120" required>
+              <button type="submit" class="btn-icon" title="Save name">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </button>
+              <button type="button" class="btn-icon rename-cancel" title="Cancel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </form>
+          </td>
+          <td style="color:hsl(var(--muted-foreground)); white-space:nowrap;">
+            <time class="history-created-at" datetime="{{ g.created_at }}" data-iso="{{ g.created_at }}">
+              {{ g.created_at[:10] }} <span style="opacity:0.7;">{{ g.created_at[11:16] }}</span>
+            </time>
+          </td>
+          <td class="mono" style="text-align:center; color:hsl(var(--muted-foreground));">{{ g.rows }}</td>
+          <td class="mono" style="text-align:center; color:hsl(var(--muted-foreground)); white-space:nowrap; font-size:11px;">
+            {{ g.wer or "—" }} <span style="opacity:0.4;"> / </span> {{ g.cer or "—" }}
+          </td>
+          <td class="mono" style="text-align:center; color:hsl(var(--muted-foreground)); white-space:nowrap; font-size:11px;">{{ g.mtr or "—" }}</td>
+          <td style="text-align:right; white-space:nowrap;">
+            <div class="row-actions">
+              <details class="dropdown">
+                <summary class="btn btn-secondary btn-sm" style="white-space:nowrap;" title="Analyze this report">
+                  Analyze
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:1px;"><polyline points="6 9 12 15 18 9"/></svg>
+                </summary>
+                <div class="dropdown-menu">
+                  <form method="post" action="/reports/generated/{{ g.id }}/analyze" class="gen-analyze-form" data-processing="Analyzing report…">
+                    <input type="hidden" name="use_llm" value="off">
+                    <button type="submit">Rule-based only</button>
+                  </form>
+                  <form method="post" action="/reports/generated/{{ g.id }}/analyze" class="gen-analyze-form" data-processing="Analyzing report with Corti Agentic Framework…">
+                    <input type="hidden" name="use_llm" value="on">
+                    <button type="submit" {% if not llm_provider %}disabled{% endif %}>With LLM second pass</button>
+                  </form>
+                  {% if not llm_provider %}
+                  <div class="menu-note">Corti API credentials not configured.</div>
+                  {% endif %}
+                </div>
+              </details>
+              <a href="/reports/generated/{{ g.id }}/report" target="_blank" rel="noopener" class="btn-icon" title="View report (HTML)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </a>
+              <details class="dropdown">
+                <summary class="btn-icon" title="Download">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </summary>
+                <div class="dropdown-menu">
+                  <a href="/reports/generated/{{ g.id }}/report/download?format=html">Download HTML</a>
+                  <a href="/reports/generated/{{ g.id }}/report/download?format=json">Download JSON</a>
+                  <a href="/reports/generated/{{ g.id }}/csv/download">Download source CSV</a>
+                </div>
+              </details>
+              <form method="post" action="/reports/generated/{{ g.id }}/delete" style="display:inline-flex;"
+                onsubmit="return confirm('Delete this generated report?');">
+                <button type="submit" class="btn-icon" title="Delete">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); line-height:1.6;">
+      No generated reports yet — <a href="/reports/new" style="color:hsl(var(--foreground));">create one from text</a>.
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px;">
+      <div class="card-title" style="margin-bottom:0;">Saved medical term lists</div>
+      <a href="/terms/new" class="btn btn-secondary btn-sm" style="text-decoration:none; white-space:nowrap;" title="Create a new term list">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New list
+      </a>
+    </div>
+    {% if saved_terms %}
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); margin-bottom:16px; line-height:1.6;">
+      Reusable term lists for the Medical Term Recall metric — pick one when creating a report.
+    </p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Saved</th>
+          <th style="text-align:center;">Terms</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in saved_terms %}
+        <tr>
+          <td style="font-weight:600; color:hsl(var(--foreground));">{{ t.name }}</td>
+          <td style="color:hsl(var(--muted-foreground)); white-space:nowrap;">
+            <time class="history-created-at" datetime="{{ t.created_at }}" data-iso="{{ t.created_at }}">
+              {{ t.created_at[:10] }} <span style="opacity:0.7;">{{ t.created_at[11:16] }}</span>
+            </time>
+          </td>
+          <td class="mono" style="text-align:center; color:hsl(var(--muted-foreground));">{{ t.count }}</td>
+          <td style="text-align:right; white-space:nowrap;">
+            <a href="/terms/{{ t.name }}/edit" class="btn btn-secondary btn-sm" style="text-decoration:none;">Edit</a>
+            <form method="post" action="/terms/{{ t.name }}/duplicate" style="display:inline;">
+              <button type="submit" class="btn btn-sm" title="Duplicate"
+                style="background:transparent; border:1px solid hsl(var(--border)); color:hsl(var(--muted-foreground)); padding:6px 9px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </form>
+            <form method="post" action="/terms/delete" style="display:inline;"
+              onsubmit="return confirm('Delete the saved term list “{{ t.name }}”?');">
+              <input type="hidden" name="name" value="{{ t.name }}">
+              <button type="submit" class="btn btn-sm" title="Delete"
+                style="background:transparent; border:1px solid hsl(var(--border)); color:hsl(var(--muted-foreground)); padding:6px 9px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); line-height:1.6;">
+      No saved term lists yet — add one with the <strong>New list</strong> button or “Save this list as…” when <a href="/reports/new" style="color:hsl(var(--foreground));">creating a report</a>.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  // Disable the per-report "Analyze" button while its analysis runs.
+  document.querySelectorAll(".gen-analyze-form").forEach(form => {
+    form.addEventListener("submit", () => {
+      const btn = form.querySelector("button[type=submit]");
+      if (btn) { btn.disabled = true; btn.textContent = "Analyzing…"; }
+    });
+  });
+</script>
+{% endblock %}

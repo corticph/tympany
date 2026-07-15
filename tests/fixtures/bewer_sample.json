@@ -1,0 +1,195 @@
+{
+ "metrics": {
+  "wer": "22.22%",
+  "cer": "13.11%",
+  "mtr": "66.67%"
+ },
+ "settings": {
+  "normalization": true,
+  "medical_terms": true
+ },
+ "examples": [
+  {
+   "example": 1,
+   "ref": "the patient has hypertension today",
+   "hyp": "the patient has hypotension",
+   "ops": [
+    {
+     "type": "MATCH",
+     "ref": "the",
+     "hyp": "the",
+     "ref_token_idx": 0,
+     "hyp_token_idx": null,
+     "ref_span": [
+      0,
+      3
+     ],
+     "hyp_span": [
+      0,
+      3
+     ],
+     "hyp_left_partial": false,
+     "hyp_right_partial": false,
+     "ref_left_partial": false,
+     "ref_right_partial": false
+    },
+    {
+     "type": "MATCH",
+     "ref": "patient",
+     "hyp": "patient",
+     "ref_token_idx": 1,
+     "hyp_token_idx": null,
+     "ref_span": [
+      4,
+      11
+     ],
+     "hyp_span": [
+      4,
+      11
+     ],
+     "hyp_left_partial": false,
+     "hyp_right_partial": false,
+     "ref_left_partial": false,
+     "ref_right_partial": false
+    },
+    {
+     "type": "MATCH",
+     "ref": "has",
+     "hyp": "has",
+     "ref_token_idx": 2,
+     "hyp_token_idx": null,
+     "ref_span": [
+      12,
+      15
+     ],
+     "hyp_span": [
+      12,
+      15
+     ],
+     "hyp_left_partial": false,
+     "hyp_right_partial": false,
+     "ref_left_partial": false,
+     "ref_right_partial": false
+    },
+    {
+     "type": "SUBSTITUTE",
+     "ref": "hypertension",
+     "hyp": "hypotension",
+     "ref_token_idx": 3,
+     "hyp_token_idx": null,
+     "ref_span": [
+      16,
+      28
+     ],
+     "hyp_span": [
+      16,
+      27
+     ],
+     "hyp_left_partial": false,
+     "hyp_right_partial": false,
+     "ref_left_partial": false,
+     "ref_right_partial": false
+    },
+    {
+     "type": "DELETE",
+     "ref": "today",
+     "hyp": null,
+     "ref_token_idx": 4,
+     "hyp_token_idx": null,
+     "ref_span": [
+      29,
+      34
+     ],
+     "hyp_span": null,
+     "hyp_left_partial": false,
+     "hyp_right_partial": false,
+     "ref_left_partial": false,
+     "ref_right_partial": false
+    }
+   ]
+  },
+  {
+   "example": 2,
+   "ref": "blood pressure was elevated",
+   "hyp": "blood pressure was elevated",
+   "ops": [
+    {
+     "type": "MATCH",
+     "ref": "blood",
+     "hyp": "blood",
+     "ref_token_idx": 0,
+     "hyp_token_idx": null,
+     "ref_span": [
+      0,
+      5
+     ],
+     "hyp_span": [
+      0,
+      5
+     ],
+     "hyp_left_partial": false,
+     "hyp_right_partial": false,
+     "ref_left_partial": false,
+     "ref_right_partial": false
+    },
+    {
+     "type": "MATCH",
+     "ref": "pressure",
+     "hyp": "pressure",
+     "ref_token_idx": 1,
+     "hyp_token_idx": null,
+     "ref_span": [
+      6,
+      14
+     ],
+     "hyp_span": [
+      6,
+      14
+     ],
+     "hyp_left_partial": false,
+     "hyp_right_partial": false,
+     "ref_left_partial": false,
+     "ref_right_partial": false
+    },
+    {
+     "type": "MATCH",
+     "ref": "was",
+     "hyp": "was",
+     "ref_token_idx": 2,
+     "hyp_token_idx": null,
+     "ref_span": [
+      15,
+      18
+     ],
+     "hyp_span": [
+      15,
+      18
+     ],
+     "hyp_left_partial": false,
+     "hyp_right_partial": false,
+     "ref_left_partial": false,
+     "ref_right_partial": false
+    },
+    {
+     "type": "MATCH",
+     "ref": "elevated",
+     "hyp": "elevated",
+     "ref_token_idx": 3,
+     "hyp_token_idx": null,
+     "ref_span": [
+      19,
+      27
+     ],
+     "hyp_span": [
+      19,
+      27
+     ],
+     "hyp_left_partial": false,
+     "hyp_right_partial": false,
+     "ref_left_partial": false,
+     "ref_right_partial": false
+    }
+   ]
+  }
+ ]
+}

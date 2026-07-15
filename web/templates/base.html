@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Tympany{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── Corti design tokens ───────────────────────────────────────── */
+    :root {
+      --background: 0 0% 95%;
+      --foreground: 0 0% 6%;
+      --card: 0 0% 100%;
+      --card-foreground: 0 0% 6%;
+      --primary: 0 0% 6%;
+      --primary-foreground: 0 0% 100%;
+      --secondary: 0 0% 100%;
+      --secondary-foreground: 0 0% 6%;
+      --accent: 0 0% 98%;
+      --accent-foreground: 222 47% 11%;
+      --muted: 0 0% 98%;
+      --muted-foreground: 0 0% 41%;
+      --destructive: 0 84% 60%;
+      --destructive-foreground: 0 0% 100%;
+      --border: 0 0% 93%;
+      --input: 0 0% 90%;
+      --dot: 0 0% 85%;
+      --ring: 215 16% 47%;
+      --radius: 0.5rem;
+      --sidebar-background: 0 0% 98%;
+      --sidebar-foreground: 240 5% 37%;
+      --sidebar-primary: 0 0% 1%;
+      --sidebar-primary-foreground: 0 0% 95%;
+      --sidebar-accent: 0 0% 94%;
+      --sidebar-accent-foreground: 0 0% 1%;
+      --sidebar-border: 0 0% 78%;
+      --sidebar-ring: 0 0% 35%;
+      --variant-error-bg: 0 100% 97%;
+      --variant-error-border: 0 93% 86%;
+      --variant-error-text: 0 72% 37%;
+      --variant-info-bg: 210 100% 97%;
+      --variant-info-border: 210 100% 88%;
+      --variant-info-text: 215 60% 23%;
+      --variant-success-bg: 142 76% 97%;
+      --variant-success-border: 142 61% 86%;
+      --variant-success-text: 142 70% 28%;
+      --variant-warning-bg: 38 100% 96%;
+      --variant-warning-border: 38 94% 84%;
+      --variant-warning-text: 30 92% 34%;
+      --chart-1: 265 65% 46%;
+      --chart-2: 204 86% 49%;
+      --corti-lime: 77 94% 53%;
+      --corti-lime-foreground: 0 0% 6%;
+    }
+    .dark {
+      --background: 0 0% 6%;
+      --foreground: 0 0% 90%;
+      --card: 0 0% 10%;
+      --card-foreground: 0 0% 90%;
+      --primary: 0 0% 100%;
+      --primary-foreground: 0 0% 6%;
+      --secondary: 0 0% 16%;
+      --secondary-foreground: 0 0% 90%;
+      --accent: 0 0% 16%;
+      --accent-foreground: 0 0% 90%;
+      --muted: 0 0% 16%;
+      --muted-foreground: 0 0% 65%;
+      --destructive: 0 72% 50%;
+      --destructive-foreground: 0 0% 100%;
+      --border: 0 0% 25%;
+      --input: 0 0% 25%;
+      --dot: 0 0% 22%;
+      --ring: 0 0% 100%;
+      --sidebar-background: 0 0% 12%;
+      --sidebar-foreground: 0 0% 90%;
+      --sidebar-primary: 0 0% 100%;
+      --sidebar-primary-foreground: 0 0% 6%;
+      --sidebar-accent: 0 0% 16%;
+      --sidebar-accent-foreground: 0 0% 90%;
+      --sidebar-border: 0 0% 25%;
+      --sidebar-ring: 0 0% 100%;
+      --variant-error-bg: 0 60% 9%;
+      --variant-error-border: 0 52% 28%;
+      --variant-error-text: 0 68% 82%;
+      --variant-info-bg: 222 67% 10%;
+      --variant-info-border: 222 51% 28%;
+      --variant-info-text: 210 20% 85%;
+      --variant-success-bg: 150 40% 8%;
+      --variant-success-border: 150 35% 28%;
+      --variant-success-text: 140 36% 80%;
+      --variant-warning-bg: 60 100% 6%;
+      --variant-warning-border: 60 100% 18%;
+      --variant-warning-text: 48 96% 78%;
+      --chart-1: 264 97% 62%;
+      --chart-2: 203 100% 60%;
+      --corti-lime: 77 94% 53%;
+      --corti-lime-foreground: 0 0% 6%;
+    }
+
+    /* ── Reset & base ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { font-size: 14px; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      /* Tiled dot grid in the page whitespace; cards and the nav keep their
+         opaque fill and sit on top, so dots show only in the empty gutters. */
+      background-color: hsl(var(--background));
+      background-image: radial-gradient(hsl(var(--dot)) 1px, transparent 1.5px);
+      background-size: 20px 20px;
+      background-position: -10px -10px;
+      color: hsl(var(--foreground));
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Nav ───────────────────────────────────────────────────────── */
+    nav {
+      background: hsl(var(--card));
+      border-bottom: 1px solid hsl(var(--border));
+      padding: 0 32px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+    }
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+    .nav-brand {
+      color: hsl(var(--foreground));
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+    }
+    .nav-brand-logo {
+      height: 28px;
+      width: auto;
+      display: block;
+    }
+    /* Primary navigation — text links, deliberately not button-like */
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .nav-link {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 20px;
+      color: hsl(var(--muted-foreground));
+      text-decoration: none;
+      padding-bottom: 3px;
+      border-bottom: 2px solid transparent;
+      transition: color 0.12s;
+    }
+    .nav-link:hover { color: hsl(var(--foreground)); }
+    .nav-link.active {
+      color: hsl(var(--foreground));
+      font-weight: 600;
+      border-bottom-color: hsl(var(--corti-lime));
+    }
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .nav-user {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: hsl(var(--muted-foreground));
+      font-size: 13px;
+    }
+    .nav-user img {
+      width: 26px; height: 26px;
+      border-radius: 9999px;
+      object-fit: cover;
+    }
+    .nav-user a {
+      color: hsl(var(--muted-foreground));
+      text-decoration: none;
+      font-size: 13px;
+    }
+    .nav-user a:hover { color: hsl(var(--foreground)); }
+
+    /* dark mode toggle */
+    .theme-toggle {
+      background: none;
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      padding: 5px 7px;
+      cursor: pointer;
+      color: hsl(var(--muted-foreground));
+      display: flex;
+      align-items: center;
+      line-height: 1;
+    }
+    .theme-toggle:hover { color: hsl(var(--foreground)); background: hsl(var(--accent)); }
+    .icon-sun, .icon-moon { display: none; }
+    html:not(.dark) .icon-sun { display: block; }
+    html.dark .icon-moon { display: block; }
+
+    /* ── Page wrapper ──────────────────────────────────────────────── */
+    .page { max-width: 1400px; margin: 0 auto; padding: 36px 40px; }
+
+    /* ── Cards ─────────────────────────────────────────────────────── */
+    .card {
+      background: hsl(var(--card));
+      color: hsl(var(--card-foreground));
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-family: 'IBM Plex Mono', monospace;
+      text-decoration: underline;
+      text-decoration-color: hsl(var(--corti-lime));
+      text-decoration-thickness: 3px;
+      text-underline-offset: 4px;
+      font-size: 15px;
+      font-weight: 550;
+      color: hsl(var(--foreground));
+      margin-bottom: 16px;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: hsl(var(--muted-foreground));
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 14px;
+    }
+
+    /* ── Buttons ────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      text-decoration: none;
+      transition: opacity .15s;
+      line-height: 1;
+    }
+    .btn:hover { opacity: .9; }
+    .btn-primary {
+      background: hsl(var(--primary));
+      color: hsl(var(--primary-foreground));
+      border: none;
+    }
+    .btn-secondary {
+      background: transparent;
+      color: hsl(var(--foreground));
+      border: 1px solid hsl(var(--border));
+    }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    /* ── Table row actions (shared by the Analyze + Create tables) ───── */
+    .row-actions {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+    /* Uniform square ghost button for icon-only row actions, sized to match
+       .btn-sm so labelled and icon actions line up on one baseline. */
+    .btn-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      background: transparent;
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      color: hsl(var(--muted-foreground));
+      cursor: pointer;
+      text-decoration: none;
+      transition: color .15s, border-color .15s;
+    }
+    .btn-icon:hover { color: hsl(var(--foreground)); border-color: hsl(var(--ring)); }
+    .btn-icon svg { width: 14px; height: 14px; }
+
+    /* Download dropdown (a native <details> menu) */
+    .dropdown { position: relative; display: inline-flex; }
+    .dropdown > summary { list-style: none; }
+    .dropdown > summary::-webkit-details-marker { display: none; }
+    .dropdown-menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 20;
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+      min-width: 132px;
+      padding: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .dropdown-menu a,
+    .dropdown-menu button {
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: hsl(var(--foreground));
+      text-decoration: none;
+      padding: 7px 10px;
+      border-radius: calc(var(--radius) - 2px);
+      white-space: nowrap;
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+    }
+    .dropdown-menu a:hover,
+    .dropdown-menu button:hover:not(:disabled) { background: hsl(var(--accent)); }
+    .dropdown-menu button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .dropdown-menu form { margin: 0; }
+    .dropdown-menu .menu-note {
+      font-size: 11px;
+      color: hsl(var(--muted-foreground));
+      padding: 2px 10px 4px;
+      line-height: 1.4;
+      white-space: normal;
+      max-width: 200px;
+    }
+
+    /* ── Inline rename (table rows + results title) ──────────────────── */
+    .row-name { display: inline-flex; align-items: center; gap: 4px; }
+    .rename-toggle {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: hsl(var(--muted-foreground));
+      padding: 2px;
+      line-height: 0;
+      opacity: 0.55;
+      transition: opacity .15s, color .15s;
+    }
+    .rename-toggle:hover { opacity: 1; color: hsl(var(--foreground)); }
+    /* In history tables, reveal the rename pencil only on row hover/focus */
+    .data-table tbody tr .rename-toggle { opacity: 0; }
+    .data-table tbody tr:hover .rename-toggle,
+    .data-table tbody tr:focus-within .rename-toggle { opacity: 0.55; }
+    .data-table tbody tr .rename-toggle:hover { opacity: 1; }
+    .rename-form { display: none; align-items: center; gap: 6px; }
+    .rename-input {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      padding: 5px 9px;
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      background: hsl(var(--background));
+      color: hsl(var(--foreground));
+      min-width: 200px;
+    }
+    .rename-input:focus { outline: none; border-color: hsl(var(--ring)); }
+
+    /* ── Badges / risk pills ────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      letter-spacing: 0.2px;
+      border: 1px solid transparent;
+    }
+    .badge-low {
+      background: hsl(var(--variant-success-bg));
+      color: hsl(var(--variant-success-text));
+      border-color: hsl(var(--variant-success-border));
+    }
+    .badge-medium {
+      background: hsl(var(--variant-warning-bg));
+      color: hsl(var(--variant-warning-text));
+      border-color: hsl(var(--variant-warning-border));
+    }
+    .badge-high {
+      background: hsl(var(--variant-error-bg));
+      color: hsl(var(--variant-error-text));
+      border-color: hsl(var(--variant-error-border));
+    }
+    .llm-badge {
+      display: inline-block;
+      background: hsl(var(--corti-lime));
+      color: hsl(var(--corti-lime-foreground));
+      border-radius: 9999px;
+      font-size: 10px;
+      padding: 2px 7px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      margin-left: 8px;
+      vertical-align: middle;
+      text-transform: uppercase;
+    }
+
+    /* ── Classification text colours ───────────────────────────────── */
+    .cls-formatting_error      { color: hsl(var(--variant-success-text)); }
+    .cls-replacement_candidate { color: hsl(var(--variant-info-text)); }
+    .cls-context_dependent     { color: hsl(var(--variant-warning-text)); }
+    .cls-misrecognition        { color: hsl(var(--variant-error-text)); }
+
+    /* ── Error banner ───────────────────────────────────────────────── */
+    .error-box {
+      background: hsl(var(--variant-error-bg));
+      border: 1px solid hsl(var(--variant-error-border));
+      color: hsl(var(--variant-error-text));
+      border-radius: var(--radius);
+      padding: 11px 16px;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+
+    /* ── Table ──────────────────────────────────────────────────────── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .data-table th {
+      text-align: left;
+      padding: 9px 12px;
+      background: hsl(var(--muted));
+      color: hsl(var(--muted-foreground));
+      border-bottom: 1px solid hsl(var(--border));
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .data-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid hsl(var(--border));
+      vertical-align: top;
+      color: hsl(var(--card-foreground));
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: hsl(var(--accent)); }
+    .mono {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+    }
+
+    /* ── Stat boxes ─────────────────────────────────────────────────── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .stat-box {
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      padding: 20px 22px;
+    }
+    .stat-num {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 5px;
+      color: hsl(var(--foreground));
+    }
+    .stat-label {
+      font-size: 11px;
+      color: hsl(var(--muted-foreground));
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    /* ── Filter bar ─────────────────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      align-items: center;
+    }
+    .filter-bar label {
+      font-size: 12px;
+      color: hsl(var(--muted-foreground));
+      font-weight: 500;
+    }
+    .filter-bar select, .filter-bar input[type="text"] {
+      padding: 5px 10px;
+      border: 1px solid hsl(var(--input));
+      border-radius: calc(var(--radius) - 2px);
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      background: hsl(var(--card));
+      color: hsl(var(--foreground));
+    }
+    .filter-bar input[type="checkbox"] { accent-color: hsl(var(--primary)); }
+
+    /* ── Divider ────────────────────────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid hsl(var(--border));
+      margin: 20px 0;
+    }
+
+    /* ── Processing overlay (blocks the page during a long submit) ───── */
+    @keyframes tym-spin { to { transform: rotate(360deg); } }
+    .processing-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: hsla(var(--background) / 0.72);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+    }
+    .processing-overlay.show { display: flex; }
+    .processing-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      padding: 18px 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+      font-size: 14px;
+      font-weight: 500;
+      color: hsl(var(--foreground));
+    }
+    .processing-spinner {
+      width: 22px;
+      height: 22px;
+      border: 2.5px solid hsl(var(--border));
+      border-top-color: hsl(var(--corti-lime));
+      border-radius: 9999px;
+      animation: tym-spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    .processing-sub {
+      font-size: 12px;
+      font-weight: 400;
+      color: hsl(var(--muted-foreground));
+      margin-top: 2px;
+    }
+
+    /* ── Util ───────────────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+    .tbl-wrap { overflow-x: auto; }
+    .text-muted { color: hsl(var(--muted-foreground)); }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% block nav %}
+<nav>
+  <div class="nav-left">
+    <a href="/" class="nav-brand" aria-label="Tympany by Corti — home">
+      <svg class="nav-brand-logo" viewBox="133 129 421 139" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+        <path d="M321.077 198.434C321.077 186.144 330.618 176.681 342.513 176.681C349.823 176.681 356.142 180.245 360.231 185.775L369.401 179.262C363.205 171.027 354.408 165.62 342.513 165.62C323.307 165.62 308.562 180.245 308.562 198.434C308.562 216.5 323.307 231.125 342.513 231.125C354.408 231.125 363.205 225.717 369.401 217.606L360.231 210.97C356.142 216.623 349.823 220.187 342.513 220.187C330.618 220.187 321.077 210.478 321.077 198.434Z" fill="currentColor"/>
+        <path d="M442.508 198.311C442.508 180.245 427.392 165.62 408.558 165.62C389.724 165.62 374.607 180.245 374.607 198.311C374.607 216.377 389.724 231.125 408.558 231.125C427.392 231.125 442.508 216.377 442.508 198.311ZM429.994 198.311C429.994 210.478 420.453 220.064 408.558 220.064C396.663 220.064 387.122 210.478 387.122 198.311C387.122 186.267 396.663 176.681 408.558 176.681C420.453 176.681 429.994 186.267 429.994 198.311Z" fill="currentColor"/>
+        <path d="M482.249 178.033V166.48H477.912C470.973 166.48 465.893 169.675 462.795 174.714V166.972H450.404V229.65H462.919V194.009C462.919 184.3 468.867 178.033 477.044 178.033H482.249Z" fill="currentColor"/>
+        <path d="M517.477 229.65H529.495V218.712H521.194C517.353 218.712 514.998 216.869 514.998 213.428V177.91H529.495V166.972H514.998V148.537L502.484 152.65V166.972H490.465V177.91H502.484V216.131C502.484 223.997 507.812 229.65 517.477 229.65Z" fill="currentColor"/>
+        <path d="M544.596 158.246C548.685 158.246 551.906 154.928 551.906 150.749C551.906 146.693 548.685 143.375 544.596 143.375C540.383 143.375 537.037 146.693 537.037 150.749C537.037 154.928 540.383 158.246 544.596 158.246ZM550.791 166.972H538.277V229.65H550.791V166.972Z" fill="currentColor"/>
+        <path d="M202.955 141.8C171.649 141.878 146.296 167.233 146.296 198.5C146.296 229.737 171.601 255.074 202.865 255.199C203.011 258.798 203.312 262.398 203.766 265.997C203.544 265.999 203.321 266 203.098 266C165.752 266 135.477 235.779 135.477 198.5C135.477 161.221 165.752 131 203.098 131C203.404 131 203.709 131.002 204.013 131.006C203.507 134.604 203.154 138.202 202.955 141.8ZM257.36 238.787C257.777 234.105 258.455 229.423 259.393 224.741C262.774 207.866 262.774 190.991 259.393 174.116C258.316 168.74 257.582 163.364 257.191 157.988C265.686 169.271 270.72 183.299 270.72 198.5C270.72 213.6 265.753 227.543 257.36 238.787ZM235.455 257.785C234.781 246.771 235.547 235.755 237.754 224.741C241.135 207.866 241.135 190.991 237.754 174.116C235.428 162.504 234.702 150.893 235.577 139.281C239.299 141.319 242.807 143.697 246.061 146.372C245.883 155.62 246.721 164.868 248.573 174.116C251.955 190.991 251.955 207.866 248.573 224.741C246.844 233.376 245.999 242.01 246.04 250.646C242.756 253.343 239.214 255.737 235.455 257.785ZM214.47 265.05C212.875 251.613 213.423 238.177 216.115 224.741C219.496 207.866 219.496 190.991 216.115 174.116C213.302 160.074 212.829 146.032 214.698 131.989C218.301 132.611 221.805 133.517 225.188 134.684C223.719 147.828 224.301 160.972 226.935 174.116C230.316 190.991 230.316 207.866 226.935 224.741C224.421 237.288 223.776 249.834 225.001 262.381C221.604 263.541 218.086 264.439 214.47 265.05Z" fill="currentColor"/>
+      </svg>
+    </a>
+    {% if user %}
+    <div class="nav-links">
+      <a href="/" class="nav-link {{ 'active' if nav_active == 'home' else '' }}">Home</a>
+      <a href="/create" class="nav-link {{ 'active' if nav_active == 'create' else '' }}">Create</a>
+      <a href="/analyze" class="nav-link {{ 'active' if nav_active == 'analyze' else '' }}">Analyze</a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="nav-right">
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">
+      <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>
+      <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    {% if user %}
+    <div class="nav-user">
+      <span>{{ user.email }}</span>
+      <a href="/logout">Sign out</a>
+    </div>
+    {% endif %}
+  </div>
+</nav>
+{% endblock %}
+
+{% block body %}{% endblock %}
+
+<!-- Full-screen processing overlay; shown while a long submit is in flight so
+     the page can't be interacted with until the server responds. -->
+<div class="processing-overlay" id="processing-overlay" role="alert" aria-live="assertive" aria-hidden="true">
+  <div class="processing-card">
+    <div class="processing-spinner"></div>
+    <div>
+      <div id="processing-message">Working…</div>
+      <div class="processing-sub">Orchestrating and contextualizing — please keep this tab open.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const stored = localStorage.getItem('theme');
+    if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  })();
+  function toggleTheme() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  }
+
+  // Render stored UTC timestamps in the viewer's local time (no-op if none present).
+  (function () {
+    const fmt = new Intl.DateTimeFormat(undefined, {
+      year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    });
+    const titleFmt = new Intl.DateTimeFormat(undefined, {
+      year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit",
+      minute: "2-digit", second: "2-digit", timeZoneName: "short",
+    });
+    document.querySelectorAll(".history-created-at").forEach(el => {
+      const iso = el.dataset.iso;
+      const date = iso ? new Date(iso) : null;
+      if (!date || Number.isNaN(date.getTime())) return;
+      el.textContent = fmt.format(date);
+      el.title = titleFmt.format(date);
+    });
+  })();
+
+  // ── Processing overlay ──────────────────────────────────────────────────
+  // window.showProcessing(msg) blocks the page with a spinner; any <form> with a
+  // data-processing="…" attribute shows it on submit (a clicked submit button's
+  // own data-processing message wins, so one form can show different text).
+  (function () {
+    const overlay = document.getElementById("processing-overlay");
+    const msgEl = document.getElementById("processing-message");
+    if (!overlay) return;
+
+    window.showProcessing = function (message) {
+      if (message) msgEl.textContent = message;
+      overlay.classList.add("show");
+      overlay.setAttribute("aria-hidden", "false");
+    };
+    function hideProcessing() {
+      overlay.classList.remove("show");
+      overlay.setAttribute("aria-hidden", "true");
+    }
+
+    // Track which submit button was used so its message can override the form's.
+    let lastSubmitter = null;
+    document.addEventListener("click", e => {
+      const btn = e.target.closest('button[type="submit"], input[type="submit"]');
+      if (btn) lastSubmitter = btn;
+    }, true);
+
+    document.querySelectorAll("form[data-processing]").forEach(form => {
+      form.addEventListener("submit", e => {
+        // Honour native validation: don't cover the page if the form is invalid.
+        if (typeof form.checkValidity === "function" && !form.checkValidity()) return;
+        const submitter = e.submitter || lastSubmitter;
+        const msg = (submitter && submitter.dataset.processing) || form.dataset.processing;
+        window.showProcessing(msg);
+      });
+    });
+
+    // A bfcache restore (Back button) can resurrect the overlay — clear it.
+    window.addEventListener("pageshow", hideProcessing);
+  })();
+
+  // Close any open <details.dropdown> when clicking outside it.
+  document.addEventListener("click", e => {
+    document.querySelectorAll("details.dropdown[open]").forEach(d => {
+      if (!d.contains(e.target)) d.removeAttribute("open");
+    });
+  });
+
+  // Inline rename: pencil reveals the rename form; cancel restores the name.
+  (function () {
+    function nameCell(el) { return el.closest("td, .top-bar, .card") || el.parentElement; }
+    document.querySelectorAll(".rename-toggle").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const form = document.getElementById(btn.dataset.target);
+        if (!form) return;
+        const cell = nameCell(btn);
+        const label = cell.querySelector(".row-name");
+        if (label) label.style.display = "none";
+        form.style.display = "flex";
+        const input = form.querySelector(".rename-input");
+        if (input) { input.focus(); input.select(); }
+      });
+    });
+    document.querySelectorAll(".rename-cancel").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const form = btn.closest(".rename-form");
+        form.style.display = "none";
+        const label = nameCell(form).querySelector(".row-name");
+        if (label) label.style.display = "";
+      });
+    });
+  })();
+</script>
+</body>
+</html>

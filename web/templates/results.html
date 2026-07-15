@@ -1,0 +1,1008 @@
+{% extends "base.html" %}
+{% block title %}Tympany — Results — {{ filename }}{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    text-decoration: none;
+    margin-bottom: 24px;
+    font-weight: 500;
+  }
+  .back-link:hover { color: hsl(var(--foreground)); }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .view-report-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: hsl(var(--variant-info-text));
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .view-report-link:hover { text-decoration: underline; }
+
+  .stat-num-success { color: hsl(var(--variant-success-text)); }
+  .stat-num-warning { color: hsl(var(--variant-warning-text)); }
+  .stat-num-error   { color: hsl(var(--variant-error-text)); }
+
+  .cls-breakdown {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .cls-breakdown-item .cls-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 3px;
+  }
+  .cls-breakdown-item .cls-name {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Editable classification select */
+  .cls-select {
+    border: none;
+    background: transparent;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 4px 2px 0;
+    border-radius: calc(var(--radius) - 2px);
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 2px center;
+    padding-right: 16px;
+  }
+  .cls-select:hover, .cls-select:focus {
+    outline: none;
+    background-color: hsl(var(--accent));
+  }
+  .cls-select.cls-formatting_error      { color: hsl(var(--variant-success-text)); }
+  .cls-select.cls-replacement_candidate { color: hsl(var(--variant-info-text)); }
+  .cls-select.cls-context_dependent     { color: hsl(var(--variant-warning-text)); }
+  .cls-select.cls-misrecognition        { color: hsl(var(--variant-error-text)); }
+
+  /* Editable description input */
+  .desc-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    padding: 2px 4px;
+    border-radius: calc(var(--radius) - 2px);
+    min-width: 120px;
+  }
+  .desc-input:hover, .desc-input:focus {
+    outline: none;
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+  }
+
+  /* Exclude checkbox */
+  .exclude-cb {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    accent-color: hsl(var(--destructive));
+  }
+  /* Flag checkbox — distinct from the red exclude box */
+  .flag-cb {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    accent-color: hsl(var(--variant-warning-text));
+  }
+  tr.excluded-row td {
+    opacity: 0.4;
+  }
+  tr.excluded-row td:last-child {
+    opacity: 1;
+  }
+
+  /* Breakdown tables */
+  .breakdown-table th {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 7px 10px;
+    white-space: nowrap;
+    background: hsl(var(--muted));
+  }
+  .breakdown-table th:first-child { text-align: left; }
+  .breakdown-table td {
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  .breakdown-table td:first-child {
+    text-align: left;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+  }
+
+  /* Sample filter dropdown */
+  .sample-dropdown { position: relative; display: inline-block; }
+  .sample-dropdown-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border: 1px solid hsl(var(--input));
+    border-radius: calc(var(--radius) - 2px);
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    cursor: pointer;
+    white-space: nowrap;
+    min-width: 140px;
+    justify-content: space-between;
+  }
+  .sample-dropdown-btn:hover { background: hsl(var(--accent)); }
+  .sample-dropdown-btn.partial { border-color: hsl(var(--ring)); }
+  .sample-dropdown-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 50;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    min-width: 180px;
+    max-height: 260px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 12px rgba(0,0,0,.08);
+  }
+  .sample-dropdown-panel.hidden { display: none; }
+  .sample-dropdown-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid hsl(var(--border));
+    flex-shrink: 0;
+  }
+  .sample-dropdown-header button {
+    background: none;
+    border: none;
+    font-size: 11px;
+    font-family: 'Inter', sans-serif;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    padding: 0;
+    font-weight: 500;
+  }
+  .sample-dropdown-header button:hover { color: hsl(var(--foreground)); }
+  .sample-dropdown-list {
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+  .sample-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    color: hsl(var(--foreground));
+    cursor: pointer;
+    user-select: none;
+  }
+  .sample-dropdown-item:hover { background: hsl(var(--accent)); }
+  .sample-dropdown-item input[type="checkbox"] {
+    accent-color: hsl(var(--primary));
+    width: 13px; height: 13px;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Error-rate card (WER / CER, original vs updated) */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .metric-block {
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .metric-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 10px;
+  }
+  .metric-pair {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .metric-cell { display: flex; flex-direction: column; gap: 2px; }
+  .metric-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1;
+    color: hsl(var(--foreground));
+  }
+  .metric-val.pending { color: hsl(var(--muted-foreground)); }
+  .metric-val.improved { color: hsl(var(--variant-success-text)); }
+  .metric-cap { font-size: 11px; color: hsl(var(--muted-foreground)); }
+  .metric-arrow { color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+
+  /* Edit indicator — subtle dot on rows that have been modified */
+  .edited-dot {
+    display: inline-block;
+    width: 5px; height: 5px;
+    border-radius: 9999px;
+    background: hsl(var(--corti-lime));
+    margin-left: 5px;
+    vertical-align: middle;
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+{% if can_rerun %}
+  {% set rerun_disabled_title = "Re-run evaluates the report with excluded errors corrected." %}
+{% else %}
+  {% set rerun_disabled_title = "This analysis predates the re-run feature — re-upload the report to enable it." %}
+{% endif %}
+{% set rerun_link_style = "text-decoration:none;" if metrics.has_rerun else "text-decoration:none; visibility:hidden;" %}
+{% set updated_wer_class = "metric-val" if metrics.updated_wer else "metric-val pending" %}
+{% set updated_cer_class = "metric-val" if metrics.updated_cer else "metric-val pending" %}
+{% if not metrics.updated_mtr %}{% set updated_mtr_class = "metric-val pending" %}
+{% elif metrics.mtr_improved %}{% set updated_mtr_class = "metric-val improved" %}
+{% else %}{% set updated_mtr_class = "metric-val" %}{% endif %}
+<div class="page">
+  <div class="top-bar">
+    <a href="/analyze" class="back-link" style="margin-bottom:0;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </a>
+    <div style="display:flex; align-items:center; gap:16px;">
+      {% if is_authored %}
+      <a href="/history/{{ analysis_id }}/initial-report/view" target="_blank" rel="noopener" class="view-report-link"
+        title="Open the input BeWER report in a new tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        View input BeWER report
+      </a>
+      {% endif %}
+      <a id="view-rerun-link" href="/history/{{ analysis_id }}/rerun-report/view" target="_blank" rel="noopener" class="view-report-link"
+        title="Open the re-run BeWER report in a new tab"
+        style="{% if not metrics.has_rerun %}display:none;{% endif %}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        View re-run BeWER report
+      </a>
+    </div>
+  </div>
+
+  {% if llm_notice %}
+  <div style="display:flex; gap:10px; align-items:flex-start; background:hsl(var(--variant-warning-bg)); border:1px solid hsl(var(--variant-warning-border)); color:hsl(var(--variant-warning-text)); border-radius:var(--radius); padding:11px 16px; margin-bottom:20px; font-size:13px; line-height:1.5;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px;"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span>{{ llm_notice }}</span>
+  </div>
+  {% endif %}
+
+  <!-- Error rates (WER / CER) + Medical Term Recall — original vs. updated from a re-run -->
+  <div id="metrics-card" style="margin-bottom:20px;">
+    <div class="metrics-grid"{% if metrics.original_mtr %} style="grid-template-columns:repeat(3, 1fr);"{% endif %}>
+      <div class="metric-block">
+        <div class="metric-title">Word Error Rate (WER)</div>
+        <div class="metric-pair">
+          <div class="metric-cell">
+            <span class="metric-val">{{ metrics.original_wer or "—" }}</span>
+            <span class="metric-cap">Original</span>
+          </div>
+          <svg class="metric-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <div class="metric-cell">
+            <span class="{{ updated_wer_class }}" id="m-wer">{{ metrics.updated_wer or "—" }}</span>
+            <span class="metric-cap">Updated</span>
+          </div>
+        </div>
+      </div>
+      <div class="metric-block">
+        <div class="metric-title">Character Error Rate (CER)</div>
+        <div class="metric-pair">
+          <div class="metric-cell">
+            <span class="metric-val">{{ metrics.original_cer or "—" }}</span>
+            <span class="metric-cap">Original</span>
+          </div>
+          <svg class="metric-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <div class="metric-cell">
+            <span class="{{ updated_cer_class }}" id="m-cer">{{ metrics.updated_cer or "—" }}</span>
+            <span class="metric-cap">Updated</span>
+          </div>
+        </div>
+      </div>
+      {% if metrics.original_mtr %}
+      <div class="metric-block">
+        <div class="metric-title" title="Share of the supplied medical terms captured — higher is better">Medical Term Recall (MTR)</div>
+        <div class="metric-pair">
+          <div class="metric-cell">
+            <span class="metric-val">{{ metrics.original_mtr or "—" }}</span>
+            <span class="metric-cap">Original</span>
+          </div>
+          <svg class="metric-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <div class="metric-cell">
+            <span class="{{ updated_mtr_class }}" id="m-mtr">{{ metrics.updated_mtr or "—" }}</span>
+            <span class="metric-cap">Updated</span>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Stat boxes -->
+  <div class="summary-grid">
+    <div class="stat-box">
+      <div class="stat-num">{{ edits|length }}</div>
+      <div class="stat-label">Total errors</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num" id="stat-excluded" style="color:hsl(var(--muted-foreground));">—</div>
+      <div class="stat-label">Excluded errors</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num" id="stat-total">—</div>
+      <div class="stat-label">Items for review</div>
+    </div>
+  </div>
+
+  <!-- Breakdown tables -->
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+
+    <!-- By classification -->
+    <div class="card" style="margin-bottom:0;">
+      <div class="section-label">By classification</div>
+      <table class="data-table breakdown-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th class="cls-misrecognition">Misrecognition</th>
+            <th class="cls-context_dependent">Context-dep.</th>
+            <th class="cls-formatting_error">Formatting</th>
+            <th class="cls-replacement_candidate">Replacement</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:600; color:hsl(var(--foreground)); white-space:nowrap;">Total</td>
+            <td id="bt-total-misrecognition">—</td>
+            <td id="bt-total-context_dependent">—</td>
+            <td id="bt-total-formatting_error">—</td>
+            <td id="bt-total-replacement_candidate">—</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600; color:hsl(var(--muted-foreground)); white-space:nowrap;">Excluded</td>
+            <td id="bt-excl-misrecognition" style="color:hsl(var(--muted-foreground));">—</td>
+            <td id="bt-excl-context_dependent" style="color:hsl(var(--muted-foreground));">—</td>
+            <td id="bt-excl-formatting_error" style="color:hsl(var(--muted-foreground));">—</td>
+            <td id="bt-excl-replacement_candidate" style="color:hsl(var(--muted-foreground));">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- By risk -->
+    <div class="card" style="margin-bottom:0;">
+      <div class="section-label">By risk level</div>
+      <table class="data-table breakdown-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th class="stat-num-error" style="font-size:11px;">High</th>
+            <th class="stat-num-warning" style="font-size:11px;">Medium</th>
+            <th class="stat-num-success" style="font-size:11px;">Low</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:600; color:hsl(var(--foreground)); white-space:nowrap;">Total</td>
+            <td id="bt-total-high">—</td>
+            <td id="bt-total-medium">—</td>
+            <td id="bt-total-low">—</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600; color:hsl(var(--muted-foreground)); white-space:nowrap;">Excluded</td>
+            <td id="bt-excl-high" style="color:hsl(var(--muted-foreground));">—</td>
+            <td id="bt-excl-medium" style="color:hsl(var(--muted-foreground));">—</td>
+            <td id="bt-excl-low" style="color:hsl(var(--muted-foreground));">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- Edits table -->
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+      <div style="display:flex; align-items:center;">
+        <span class="row-name">
+          <span class="card-title" style="margin-bottom:0;">{{ filename }}</span>
+          {% if llm_used %}<span class="llm-badge">LLM</span>{% endif %}
+          <button type="button" class="rename-toggle" title="Rename" data-target="rn-results" aria-label="Rename analysis">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </button>
+        </span>
+        <form id="rn-results" class="rename-form" method="post" action="/history/{{ analysis_id }}/rename">
+          <input type="hidden" name="back" value="/history/{{ analysis_id }}">
+          <input class="rename-input" type="text" name="name" value="{{ filename }}" maxlength="120" required>
+          <button type="submit" class="btn-icon" title="Save name">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+          <button type="button" class="btn-icon rename-cancel" title="Cancel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </form>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span id="save-status" style="font-size:12px; color:hsl(var(--muted-foreground)); opacity:0; transition:opacity 0.2s;"></span>
+        <div style="display:grid; grid-template-columns:{{ 'repeat(3, 1fr)' if is_authored else 'repeat(2, 1fr)' }}; gap:8px;">
+          {% if is_authored %}
+          <a class="btn btn-secondary btn-sm" href="/history/{{ analysis_id }}/input-csv/download"
+            title="Download the (reference, generated) CSV used to generate this report">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download input CSV
+          </a>
+          {% endif %}
+          {% if can_rerun %}
+          <button class="btn btn-secondary btn-sm" id="rerun-btn" onclick="rerunReport()"
+            title="Re-run with excluded errors removed to measure their impact on WER/CER">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Re-run BeWER
+          </button>
+          {% else %}
+          <button class="btn btn-secondary btn-sm" id="rerun-btn" disabled
+            style="opacity:0.5; cursor:not-allowed;"
+            title="{{ rerun_disabled_title }}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Re-run BeWER
+          </button>
+          {% endif %}
+          <button class="btn btn-secondary btn-sm" id="export-flags-btn" onclick="exportFlags()"
+            title="Download a CSV of only the flagged rows, with surrounding context from the report">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+            Export flags
+          </button>
+          {% if is_authored %}
+          <a class="btn btn-secondary btn-sm" href="/history/{{ analysis_id }}/initial-report/download"
+            title="Download the input BeWER report this analysis was generated from">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download BeWER report
+          </a>
+          {% endif %}
+          <a id="rerun-report-link" href="/history/{{ analysis_id }}/rerun-report/download"
+            class="btn btn-secondary btn-sm" title="Download the re-run BeWER report"
+            style="{{ rerun_link_style }}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Re-run report
+          </a>
+          <button class="btn btn-secondary btn-sm" id="download-btn" onclick="downloadCSV()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export results
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <label id="sample-filter-label" style="display:none;">Samples</label>
+      <div id="sample-dropdown-wrap" class="sample-dropdown" style="display:none;">
+        <button class="sample-dropdown-btn" id="sample-dropdown-btn" onclick="toggleSamplePanel(event)">
+          <span id="sample-dropdown-label">All samples</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="sample-dropdown-panel hidden" id="sample-dropdown-panel">
+          <div class="sample-dropdown-header">
+            <button onclick="setSampleAll(true)">Select all</button>
+            <button onclick="setSampleAll(false)">Clear all</button>
+          </div>
+          <div class="sample-dropdown-list" id="sample-dropdown-list"></div>
+        </div>
+      </div>
+      <label>Classification</label>
+      <select id="filter-cls" onchange="applyFilters()">
+        <option value="">All</option>
+        <option value="formatting_error">Formatting error</option>
+        <option value="replacement_candidate">Replacement candidate</option>
+        <option value="context_dependent">Context-dependent</option>
+        <option value="misrecognition">Misrecognition</option>
+      </select>
+      <label>Risk</label>
+      <select id="filter-risk" onchange="applyFilters()">
+        <option value="">All</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+      <label for="filter-excluded">Excluded</label>
+      <select id="filter-excluded" onchange="applyFilters()">
+        <option value="">All</option>
+        <option value="hide">Hide excluded</option>
+        <option value="only">Only excluded</option>
+      </select>
+    </div>
+
+    <div class="tbl-wrap">
+      <table
+        class="data-table"
+        id="edits-table"
+        data-analysis-id="{{ analysis_id }}"
+        data-download-base="{{ download_base }}"
+      >
+        <colgroup>
+          <col style="width:3ch;">
+          <col style="width:7ch;">
+          <col style="width:21%;">
+          <col style="width:21%;">
+          <col style="width:17%;">
+          <col style="width:8%;">
+          <col style="width:auto;">
+          <col style="width:6ch;">
+          <col style="width:5ch;">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Sample</th>
+            <th>Ref</th>
+            <th>Generated</th>
+            <th>Classification</th>
+            <th>Risk</th>
+            <th>Description</th>
+            <th title="Exclude this row from error counts and CSV totals">Exclude</th>
+            <th title="Flag this row for further review">Flag</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in edits %}
+          <tr
+            data-idx="{{ loop.index0 }}"
+            data-cls="{{ e.classification }}"
+            data-risk="{{ e.risk_level }}"
+            class="{{ 'excluded-row' if e.excluded else '' }}"
+            data-file="{{ e.file }}"
+            data-example="{{ e.example }}"
+            data-ref="{{ e.ref }}"
+            data-gen="{{ e.gen }}"
+            data-op="{{ e.op }}"
+            data-detail="{{ e.detail }}"
+            data-category="{{ e.category }}"
+            data-rc="{{ e.replacement_candidate }}"
+            data-excluded="{{ 'true' if e.excluded else 'false' }}"
+            data-flagged="{{ 'true' if e.flagged else 'false' }}"
+          >
+            <td class="mono" style="color:hsl(var(--muted-foreground));">{{ loop.index }}</td>
+            <td style="color:hsl(var(--muted-foreground)); font-size:12px; font-weight:600; white-space:nowrap;">Ex.&nbsp;{{ e.example }}</td>
+            <td class="mono" style="color:hsl(var(--muted-foreground));">{{ e.ref }}</td>
+            <td class="mono" style="color:hsl(var(--foreground)); font-weight:500;">{{ e.gen }}</td>
+            <td>
+              <select
+                class="cls-select cls-{{ e.classification }}"
+                onchange="onClassificationChange(this)"
+                data-row="{{ loop.index0 }}"
+              >
+                <option value="formatting_error"      {% if e.classification == 'formatting_error'      %}selected{% endif %}>Formatting Error</option>
+                <option value="replacement_candidate" {% if e.classification == 'replacement_candidate' %}selected{% endif %}>Replacement Candidate</option>
+                <option value="context_dependent"     {% if e.classification == 'context_dependent'     %}selected{% endif %}>Context Dependent</option>
+                <option value="misrecognition"        {% if e.classification == 'misrecognition'        %}selected{% endif %}>Misrecognition</option>
+              </select>
+            </td>
+            <td>
+              <span class="badge badge-{{ e.risk_level }}" data-risk-badge title="{{ e.detail }}">{{ e.risk_level }}</span>
+            </td>
+            <td>
+              <input
+                type="text"
+                class="desc-input"
+                value="{{ e.description }}"
+                maxlength="150"
+                placeholder="Enter description…"
+                onchange="markEdited(this.closest('tr'))"
+                onmouseover="this.title=this.value"
+              >
+            </td>
+            <td style="text-align:center;">
+              <input
+                type="checkbox"
+                class="exclude-cb"
+                onchange="onExcludeChange(this)"
+                title="Exclude this error from counts"
+                {% if e.excluded %}checked{% endif %}
+              >
+            </td>
+            <td style="text-align:center;">
+              <input
+                type="checkbox"
+                class="flag-cb"
+                onchange="onFlagChange(this)"
+                title="Flag this row for further review"
+                {% if e.flagged %}checked{% endif %}
+              >
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div id="no-results" class="hidden" style="text-align:center; padding:32px; color:hsl(var(--muted-foreground)); font-size:13px;">
+      No errors match the current filters.
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+const CLS_RISK = {
+  formatting_error:      'low',
+  replacement_candidate: 'low',
+  context_dependent:     'medium',
+  misrecognition:        'high',
+};
+
+const ANALYSIS_ID = document.querySelector('#edits-table')?.dataset.analysisId || '';
+const DOWNLOAD_BASE = document.querySelector('#edits-table')?.dataset.downloadBase || '';
+
+// ── Classification change ────────────────────────────────────────────────────
+function onClassificationChange(sel) {
+  const row  = sel.closest('tr');
+  const val  = sel.value;
+
+  // Update select colour class
+  sel.className = 'cls-select cls-' + val;
+
+  // Update risk badge
+  const newRisk = CLS_RISK[val] || 'medium';
+  row.dataset.cls  = val;
+  row.dataset.risk = newRisk;
+  const badge = row.querySelector('[data-risk-badge]');
+  badge.className   = 'badge badge-' + newRisk;
+  badge.textContent = newRisk;
+
+  markEdited(row);
+  updateStats();
+  applyFilters();
+}
+
+// ── Exclude change ───────────────────────────────────────────────────────────
+function onExcludeChange(cb) {
+  const row = cb.closest('tr');
+  const excluded = cb.checked;
+  row.dataset.excluded = excluded ? 'true' : 'false';
+  row.classList.toggle('excluded-row', excluded);
+  markEdited(row);
+  updateStats();
+  applyFilters();
+}
+
+// ── Flag change ──────────────────────────────────────────────────────────────
+function onFlagChange(cb) {
+  const row = cb.closest('tr');
+  row.dataset.flagged = cb.checked ? 'true' : 'false';
+  markEdited(row);
+}
+
+// ── Mark edited ──────────────────────────────────────────────────────────────
+function markEdited(row) {
+  if (!row.querySelector('.edited-dot')) {
+    const firstTd = row.querySelector('td');
+    const dot = document.createElement('span');
+    dot.className = 'edited-dot';
+    dot.title = 'Edited';
+    firstTd.appendChild(dot);
+  }
+  scheduleSave();
+}
+
+// ── Autosave to history ────────────────────────────────────────────────────────
+let saveTimer = null;
+
+function collectRows() {
+  return [...document.querySelectorAll('#edits-table tbody tr')].map(row => ({
+    file:                  row.dataset.file    || '',
+    example:               row.dataset.example || '',
+    ref:                   row.dataset.ref     || '',
+    gen:                   row.dataset.gen     || '',
+    op:                    row.dataset.op      || '',
+    category:              row.dataset.category || '',
+    classification:        row.querySelector('.cls-select').value,
+    risk_level:            row.dataset.risk    || '',
+    replacement_candidate: row.dataset.rc      || '',
+    detail:                row.dataset.detail  || '',
+    description:           row.querySelector('.desc-input').value,
+    excluded:              row.querySelector('.exclude-cb').checked,
+    flagged:               row.querySelector('.flag-cb').checked,
+  }));
+}
+
+function setSaveStatus(text, fade) {
+  const el = document.getElementById('save-status');
+  if (!el) return;
+  el.textContent = text;
+  el.style.opacity = text ? '1' : '0';
+  if (fade) setTimeout(() => { el.style.opacity = '0'; }, 1500);
+}
+
+function scheduleSave() {
+  if (!ANALYSIS_ID) return;          // nothing to save against
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveEdits, 800);
+}
+
+async function saveEdits() {
+  if (!ANALYSIS_ID) return;
+  setSaveStatus('Saving…', false);
+  try {
+    const res = await fetch(`/history/${ANALYSIS_ID}/edits`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ edits: collectRows() }),
+    });
+    setSaveStatus(res.ok ? 'Saved' : 'Save failed', res.ok);
+  } catch (e) {
+    setSaveStatus('Save failed', false);
+  }
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+function updateStats() {
+  const rows = [...document.querySelectorAll('#edits-table tbody tr')];
+  const active = rows.filter(r => r.dataset.excluded !== 'true');
+
+  const excluded = rows.filter(r => r.dataset.excluded === 'true');
+
+  // Top stat boxes
+  document.getElementById('stat-excluded').textContent = excluded.length;
+  document.getElementById('stat-total').textContent    = active.length;
+
+  // By classification table
+  ['misrecognition','context_dependent','formatting_error','replacement_candidate'].forEach(cls => {
+    const tot = rows.filter(r => r.dataset.cls === cls).length;
+    const exc = excluded.filter(r => r.dataset.cls === cls).length;
+    document.getElementById('bt-total-' + cls).textContent = tot;
+    document.getElementById('bt-excl-'  + cls).textContent = exc;
+  });
+
+  // By risk table
+  ['high','medium','low'].forEach(risk => {
+    const tot = rows.filter(r => r.dataset.risk === risk).length;
+    const exc = excluded.filter(r => r.dataset.risk === risk).length;
+    document.getElementById('bt-total-' + risk).textContent = tot;
+    document.getElementById('bt-excl-'  + risk).textContent = exc;
+  });
+}
+
+// ── Sample dropdown ───────────────────────────────────────────────────────────
+let activeSamples = new Set();
+let allExamples   = [];
+
+function buildSampleChips() {
+  const rows = document.querySelectorAll('#edits-table tbody tr');
+  allExamples = [...new Set([...rows].map(r => r.dataset.example))].sort((a,b) => +a - +b);
+
+  const wrap = document.getElementById('sample-dropdown-wrap');
+  if (allExamples.length <= 1) return;   // hide for single-sample files
+
+  activeSamples = new Set(allExamples);
+  wrap.style.display = 'inline-block';
+  document.getElementById('sample-filter-label').style.display = '';
+
+  const list = document.getElementById('sample-dropdown-list');
+  list.innerHTML = '';
+  allExamples.forEach(ex => {
+    const item = document.createElement('label');
+    item.className = 'sample-dropdown-item';
+    item.innerHTML = `<input type="checkbox" checked data-ex="${ex}" onchange="onSampleCheck()"> Example ${ex}`;
+    list.appendChild(item);
+  });
+  updateSampleLabel();
+}
+
+function toggleSamplePanel(e) {
+  e.stopPropagation();
+  document.getElementById('sample-dropdown-panel').classList.toggle('hidden');
+}
+
+function setSampleAll(checked) {
+  document.querySelectorAll('#sample-dropdown-list input').forEach(cb => cb.checked = checked);
+  onSampleCheck();
+}
+
+function onSampleCheck() {
+  const checked = [...document.querySelectorAll('#sample-dropdown-list input:checked')];
+  // Prevent deselecting all
+  if (checked.length === 0) {
+    document.querySelectorAll('#sample-dropdown-list input').forEach(cb => cb.checked = true);
+    return;
+  }
+  activeSamples = new Set(checked.map(cb => cb.dataset.ex));
+  updateSampleLabel();
+  applyFilters();
+}
+
+function updateSampleLabel() {
+  const label = document.getElementById('sample-dropdown-label');
+  const btn   = document.getElementById('sample-dropdown-btn');
+  if (activeSamples.size === allExamples.length) {
+    label.textContent = 'All samples';
+    btn.classList.remove('partial');
+  } else {
+    label.textContent = `${activeSamples.size} of ${allExamples.length} samples`;
+    btn.classList.add('partial');
+  }
+}
+
+// Close panel when clicking outside
+document.addEventListener('click', e => {
+  const panel = document.getElementById('sample-dropdown-panel');
+  if (panel && !panel.classList.contains('hidden')) {
+    if (!document.getElementById('sample-dropdown-wrap').contains(e.target)) {
+      panel.classList.add('hidden');
+    }
+  }
+});
+
+// ── Filters ──────────────────────────────────────────────────────────────────
+function applyFilters() {
+  const cls          = document.getElementById('filter-cls').value;
+  const risk         = document.getElementById('filter-risk').value;
+  const excludedMode = document.getElementById('filter-excluded').value;
+  const rows         = document.querySelectorAll('#edits-table tbody tr');
+  let visible = 0;
+  rows.forEach(row => {
+    const isExcluded = row.dataset.excluded === 'true';
+    const matchesExcluded =
+      excludedMode === 'only' ? isExcluded :
+      excludedMode === 'hide' ? !isExcluded :
+      true;
+    const show =
+      (activeSamples.size === 0 || activeSamples.has(row.dataset.example)) &&
+      (!cls || row.dataset.cls === cls) &&
+      (!risk || row.dataset.risk === risk) &&
+      matchesExcluded;
+    row.classList.toggle('hidden', !show);
+    if (show) visible++;
+  });
+  document.getElementById('no-results').classList.toggle('hidden', visible > 0);
+}
+
+// ── CSV download (client-side, reflects all edits) ───────────────────────────
+function downloadCSV() {
+  const rows = [...document.querySelectorAll('#edits-table tbody tr')];
+  const header = ['file','example','ref','gen','op','classification','risk_level','error_description','excluded','flagged','detail'];
+  const lines = [header.join(',')];
+
+  rows.forEach(row => {
+    const desc  = row.querySelector('.desc-input').value;
+    const cls   = row.querySelector('.cls-select').value;
+    const excl  = row.querySelector('.exclude-cb').checked;
+    const flag  = row.querySelector('.flag-cb').checked;
+    const risk  = row.dataset.risk;
+
+    const cells = [
+      csvEsc(row.dataset.file    || ''),
+      csvEsc(row.dataset.example || ''),
+      csvEsc(row.dataset.ref     || ''),
+      csvEsc(row.dataset.gen     || ''),
+      csvEsc(row.dataset.op      || ''),
+      csvEsc(cls),
+      csvEsc(risk),
+      csvEsc(desc),
+      excl ? 'true' : 'false',
+      flag ? 'true' : 'false',
+      csvEsc(row.dataset.detail  || ''),
+    ];
+    lines.push(cells.join(','));
+  });
+
+  const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  const today = new Date().toISOString().slice(0, 10);   // download date (UTC)
+  a.download = `tympany_${today}_${DOWNLOAD_BASE}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvEsc(val) {
+  const s = String(val);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+// ── Export flagged rows (server-side, includes report context) ────────────────
+async function exportFlags() {
+  if (!ANALYSIS_ID) return;
+  const flagged = [...document.querySelectorAll('#edits-table .flag-cb')]
+    .filter(cb => cb.checked).length;
+  if (!flagged) {
+    alert('No rows are flagged. Tick the Flag box on rows you want to review.');
+    return;
+  }
+  // Flush the latest flag state before the server builds the export.
+  await saveEdits();
+  window.location = `/history/${ANALYSIS_ID}/flags/download`;
+}
+
+// ── Re-run ─────────────────────────────────────────────────────────────
+const SPINNER_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.8s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>';
+
+async function rerunReport() {
+  const btn = document.getElementById('rerun-btn');
+  if (!ANALYSIS_ID || !btn || btn.disabled) return;
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = SPINNER_SVG + ' Re-running…';
+  try {
+    await saveEdits();   // flush the latest exclusions before re-running
+    const res  = await fetch(`/history/${ANALYSIS_ID}/rerun`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      applyMetrics(data.metrics);
+    } else {
+      alert(data.message || 'Re-run failed. Check the server logs.');
+    }
+  } catch (e) {
+    alert('Re-run failed: ' + e);
+  } finally {
+    btn.innerHTML = original;
+    btn.disabled = false;
+  }
+}
+
+function applyMetrics(m) {
+  if (!m) return;
+  const wer = document.getElementById('m-wer');
+  const cer = document.getElementById('m-cer');
+  if (m.updated_wer && wer) { wer.textContent = m.updated_wer; wer.classList.remove('pending'); }
+  if (m.updated_cer && cer) { cer.textContent = m.updated_cer; cer.classList.remove('pending'); }
+  const mtr = document.getElementById('m-mtr');
+  if (m.updated_mtr && mtr) {
+    mtr.textContent = m.updated_mtr;
+    mtr.classList.remove('pending');
+    mtr.classList.toggle('improved', !!m.mtr_improved);  // higher MTR is better
+  }
+  const link = document.getElementById('rerun-report-link');
+  if (link && m.has_rerun) link.style.visibility = 'visible';
+  const viewLink = document.getElementById('view-rerun-link');
+  if (viewLink && m.has_rerun) viewLink.style.display = '';
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+buildSampleChips();
+updateStats();
+</script>
+{% endblock %}

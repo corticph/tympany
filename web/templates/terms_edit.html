@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Tympany — Edit term list{% endblock %}
+
+{% block head %}
+<style>
+  .field-label {
+    display:block; font-size:12px; color:hsl(var(--muted-foreground));
+    margin-bottom:6px; font-weight:500;
+  }
+  .text-input, .textarea-input {
+    width:100%; box-sizing:border-box; font-size:13px;
+    font-family:'Inter',sans-serif; color:hsl(var(--foreground));
+    background:hsl(var(--background)); border:1px solid hsl(var(--border));
+    border-radius:var(--radius); padding:9px 11px;
+  }
+  .textarea-input {
+    min-height:280px; resize:vertical; line-height:1.5;
+    font-family:'SF Mono',ui-monospace,monospace; font-size:12.5px;
+  }
+  .text-input:focus, .textarea-input:focus { outline:none; border-color:hsl(var(--ring)); }
+  .hint { font-size:11.5px; color:hsl(var(--muted-foreground)); margin-top:6px; line-height:1.5; }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="page">
+  <div style="margin-bottom:18px;">
+    <a href="/create" class="back-link" style="font-size:13px; color:hsl(var(--muted-foreground)); text-decoration:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </a>
+  </div>
+
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-title">{{ heading or "Edit term list" }}</div>
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); margin-bottom:20px; line-height:1.6;">
+      Changes apply to <strong style="color:hsl(var(--foreground));">future</strong> reports only — reports
+      already generated kept their own copy of the terms and are unaffected.
+    </p>
+
+    <form method="post" action="{{ action or ('/terms/' ~ name ~ '/edit') }}" id="terms-edit-form">
+      <div style="margin-bottom:18px; max-width:360px;">
+        <label class="field-label" for="new_name">Name</label>
+        <input class="text-input" type="text" name="new_name" id="new_name" value="{{ name }}" placeholder="e.g. cardiology-v2">
+        <div class="hint">Spaces and other characters become dashes. Using an existing list's name is not allowed.</div>
+      </div>
+
+      {% if corti_configured %}
+      <div style="margin-bottom:18px; padding:14px 16px; border:1px dashed hsl(var(--border)); border-radius:var(--radius);">
+        <label class="field-label" style="margin-bottom:8px;">Extract from a BeWER report <span style="opacity:0.7;">(optional)</span></label>
+        <div class="hint" style="margin-top:0; margin-bottom:10px;">Upload a BeWER report and Tympany pulls medical terms from its <strong>reference</strong> text, adding any new ones below.</div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <input class="text-input" type="file" id="extract-file" accept=".json" style="max-width:300px;">
+          <button type="button" class="btn btn-secondary btn-sm" id="extract-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><path d="M12 2v6m0 0 3-3m-3 3L9 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+            Extract terms
+          </button>
+          <span id="extract-status" style="font-size:12px; color:hsl(var(--muted-foreground));"></span>
+        </div>
+      </div>
+      {% endif %}
+
+      <div>
+        <label class="field-label" for="content">
+          Terms <span id="term-count" style="opacity:0.7;">({{ count }} term{{ "" if count == 1 else "s" }})</span>
+        </label>
+        <textarea class="textarea-input" name="content" id="content" placeholder="One term or phrase per line…">{{ content }}</textarea>
+        <div class="hint">One medical term or phrase per line.</div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:22px;">
+        <button type="submit" class="btn btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save changes
+        </button>
+        <a href="/create" class="btn btn-secondary" style="text-decoration:none;">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const ta = document.getElementById("content");
+  const countLabel = document.getElementById("term-count");
+  function recount() {
+    const n = ta.value.split("\n").filter(l => l.trim()).length;
+    countLabel.textContent = `(${n} term${n === 1 ? "" : "s"})`;
+  }
+  ta.addEventListener("input", recount);
+  recount();
+
+  // ── Extract medical terms from a BeWER report (append + de-duplicate) ───────
+  (function () {
+    const btn = document.getElementById("extract-btn");
+    if (!btn) return;  // hidden when Corti isn't configured
+    const fileInput = document.getElementById("extract-file");
+    const status = document.getElementById("extract-status");
+
+    btn.addEventListener("click", async () => {
+      const f = fileInput.files[0];
+      if (!f) { status.textContent = "Choose a BeWER report (.json) first."; return; }
+      const original = btn.innerHTML;
+      btn.disabled = true; btn.textContent = "Extracting…"; status.textContent = "";
+      try {
+        const fd = new FormData();
+        fd.append("file", f);
+        const res = await fetch("/terms/extract", { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) { status.textContent = data.message || "Extraction failed."; return; }
+        const terms = data.terms || [];
+        const existing = ta.value.split("\n").map(l => l.trim()).filter(Boolean);
+        const seen = new Set(existing.map(t => t.toLowerCase()));
+        let added = 0;
+        terms.forEach(t => {
+          const k = t.toLowerCase();
+          if (!seen.has(k)) { seen.add(k); existing.push(t); added++; }
+        });
+        ta.value = existing.join("\n") + (existing.length ? "\n" : "");
+        recount();
+        status.textContent = terms.length
+          ? `Added ${added} new term${added === 1 ? "" : "s"} (${terms.length} found).`
+          : "No medical terms detected.";
+      } catch (e) {
+        status.textContent = "Extraction failed.";
+      } finally {
+        btn.disabled = false; btn.innerHTML = original;
+      }
+    });
+  })();
+</script>
+{% endblock %}

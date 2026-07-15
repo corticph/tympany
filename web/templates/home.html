@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Tympany — Home{% endblock %}
+
+{% block head %}
+<style>
+  .hero { display: grid; gap: 8px; margin: 0 0 28px; padding-bottom: 4px; }
+  .hero h1 {
+    margin: 0;
+    color: hsl(var(--foreground));
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+  }
+  .hero p {
+    max-width: 1024px;
+    margin: 0;
+    color: hsl(var(--muted-foreground));
+    font-size: 14px;
+    line-height: 1.625;
+  }
+
+  .cta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+  .cta {
+    display: flex; flex-direction: column; gap: 8px;
+    border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+    background: hsl(var(--card)); padding: 22px 22px 24px;
+    text-decoration: none; color: hsl(var(--foreground));
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.05s;
+  }
+  .cta:hover { border-color: hsl(var(--ring)); box-shadow: 0 4px 14px rgba(0,0,0,.06); }
+  .cta:active { transform: translateY(1px); }
+  .cta-icon {
+    width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    background: hsl(var(--corti-lime)); color: hsl(var(--corti-lime-foreground)); margin-bottom: 4px;
+  }
+  .cta-title { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .cta-desc { font-size: 13px; color: hsl(var(--muted-foreground)); line-height: 1.55; }
+  .cta-go { margin-top: auto; font-size: 13px; font-weight: 600; color: hsl(var(--variant-info-text)); padding-top: 10px; }
+
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; }
+  .step-num {
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 9999px;
+    background: hsl(var(--muted)); color: hsl(var(--foreground));
+    font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .step-body { font-size: 13px; line-height: 1.55; }
+  .step-body strong { color: hsl(var(--foreground)); }
+  .step-body span { color: hsl(var); }
+
+  .bp { display: grid; gap: 14px; }
+  .bp-item { font-size: 13px; line-height: 1.6; color: hsl(var(--muted-foreground)); }
+  .bp-item strong { color: hsl(var(--foreground)); }
+  .bp-more { display: none; }
+  .bp-more.open { display: grid; gap: 14px; }
+  .bp-toggle {
+    margin-top: 4px; align-self: start; background: transparent; border: none; cursor: pointer;
+    color: hsl(var(--variant-info-text)); font-size: 13px; font-weight: 600;
+    font-family: 'Inter', sans-serif; padding: 0; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .stat-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 2px; }
+  .stat-pill {
+    font-size: 12px; padding: 4px 10px; border-radius: 9999px; border: 1px solid hsl(var(--border));
+    color: hsl(var(--foreground)); white-space: nowrap;
+  }
+  .stat-pill b { font-family: 'IBM Plex Mono', monospace; }
+  .doc-link { font-size: 13px; font-weight: 600; color: hsl(var(--variant-info-text)); text-decoration: none; }
+  .doc-link:hover { text-decoration: underline; }
+  .links-row { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+  .links-row .doc-link { display: inline-flex; align-items: center; gap: 5px; }
+  .links-row .doc-link svg { width: 13px; height: 13px; flex-shrink: 0; opacity: 0.7; }
+  @media (max-width: 720px) { .cta-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block body %}
+{% macro external_link_icon() %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>{% endmacro %}
+{% macro mail_icon() %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>{% endmacro %}
+<div class="page">
+  <div class="hero">
+  <h1>Tympany</h1>
+    <p>Create speech-to-text reports to measure and visualize word error rate (WER), character error rate (CER), and medical term recall (MTR). Analyze errors to ensure your benchmarks reflect <i>true model quality</i>: identify <strong style="color:hsl(var(--foreground));">meaningful misrecognitions vs minor formatting or reference text errors</strong>.</p>
+  </div>
+
+  <div class="cta-grid">
+    <a href="/create" class="cta">
+      <div class="cta-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </div>
+      <div class="cta-title" style="font-family: 'IBM Plex Mono', monospace;">Create a BeWER report</div>
+      <div class="cta-desc">Paste or upload reference &amp; generated transcripts and Tympany runs ErrorAlign to produce a "Beyond WER" (BeWER) report — ready to view, download, or analyze.</div>
+      <div class="cta-go">Create →</div>
+    </a>
+    <a href="/analyze" class="cta">
+      <div class="cta-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <div class="cta-title" style="font-family: 'IBM Plex Mono', monospace;">Analyze a BeWER report</div>
+      <div class="cta-desc">Upload an existing BeWER report and classify every difference by type and clinical risk — then recompute WER with the noise removed.</div>
+      <div class="cta-go">Analyze →</div>
+    </a>
+  </div>
+
+  <div class="card">
+    <div class="card-title">How it works</div>
+    <ol class="steps">
+      <li class="step">
+        <span class="step-num">1</span>
+        <div class="step-body"><strong>Create or upload.</strong> <span>Generate a BeWER report from transcripts on the <a href="/create" class="doc-link">Create</a> page, or <a href="/analyze" class="doc-link">upload</a> one you already have.</span></div>
+      </li>
+      <li class="step">
+        <span class="step-num">2</span>
+        <div class="step-body"><strong>Review &amp; classify.</strong> <span>Every reference/generated difference is categorized by type and clinical risk — formatting, replacement candidate, context-dependent, or misrecognition.</span></div>
+      </li>
+      <li class="step">
+        <span class="step-num">3</span>
+        <div class="step-body"><strong>Exclude the noise.</strong> <span>Mark formatting/normalization differences and fixable shorthand as excluded so they don't count against the model. Flag anything for follow-up.</span></div>
+      </li>
+      <li class="step">
+        <span class="step-num">4</span>
+        <div class="step-body"><strong>Re-run WER.</strong> <span>Recompute WER/CER (and Medical Term Recall) with the excluded items corrected, to see the model's <em>true</em> error rate.</span></div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title">WER best practices</div>
+    <div class="bp">
+      <div><strong>WER measures overall accuracy</strong>, but measuring it reliably and accurately is <i>difficult.</i></div>
+      
+      <div><strong>MTR compliments WER:</strong> the best STT models balance medical <em>and</em> everyday language, and adapt to the formatting demands of the target workflow.</div>
+
+      <div>
+        <strong>Check your work:</strong> quality audio → correct configuration → a gold-standard transcript → verify the alignment.
+      </div> 
+
+      <div>      
+        <strong>Tympany supports the “check your work” step</strong> — separate real errors from formatting/normalization noise.
+      </div>
+
+      <div class="bp-more" id="bp-more">
+      <hr>
+        <div>
+          Many “bad transcript” reports aren't caused by the STT model itself. <br/><i>Before</i> concluding a model is wrong, rule out the far more common causes:
+        </div>
+        <ul style="list-style: disc; margin-left: 20px;">
+          <li class="bp-item"><strong>Audio quality.</strong> Mind microphone selection, placement, and calibration; use mono or dual-mono multichannel; capture at 16&nbsp;kHz, 16-bit; and account for room acoustics.</li>
+          <li class="bp-item"><strong>Validate integration.</strong> Use the right endpoint for the workflow (dictation/UI control, live conversations, or batch files) and confirm configuration — formatting, punctuation, commands, diarization.</li>
+          <li class="bp-item"><strong>Gold transcript.</strong> The reference test must represent what is in the audio file <em>and</em> formatted to match what the model is configured to output.</li>
+          </ul>
+          <div class="bp-item"><strong>Risk: Misaligned evaluations.</strong> A reference that doesn't match the formatting config, or a gold transcript that doesn't match the audio, inflates WER with differences that aren't real errors.</div>
+          <div class="bp-item"><strong>Solution: Tympany</strong> surfaces these as formatting/replacement differences so you can exclude them and measure true misrecognitions.</div>
+      </div>
+
+      <button type="button" class="bp-toggle" id="bp-toggle" aria-expanded="false">
+        <span id="bp-toggle-label">Show more</span>
+        <svg id="bp-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Links</div>
+    <div class="links-row">
+      <a href="https://docs.corti.ai/stt" target="_blank" rel="noopener" class="doc-link">{{ external_link_icon() }}Corti STT documentation</a>
+      <a href="https://docs.corti.ai/stt/feedback" target="_blank" rel="noopener" class="doc-link">{{ external_link_icon() }}Submit feedback</a>
+      <a href="https://pypi.org/project/bewer/" target="_blank" rel="noopener" class="doc-link">{{ external_link_icon() }}BeWER</a>
+      <a href="https://pypi.org/project/error-align/" target="_blank" rel="noopener" class="doc-link">{{ external_link_icon() }}ErrorAlign</a>
+      <a href="https://github.com/corticph/corti-canal" target="_blank" rel="noopener" class="doc-link">{{ external_link_icon() }}Corti Canal</a>
+      <a href="mailto:help@corti.ai" rel="noopener" class="doc-link">{{ mail_icon() }}Contact us</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const more = document.getElementById("bp-more");
+    const btn = document.getElementById("bp-toggle");
+    const label = document.getElementById("bp-toggle-label");
+    const chev = document.getElementById("bp-chevron");
+    btn.addEventListener("click", () => {
+      const open = more.classList.toggle("open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      label.textContent = open ? "Show less" : "Show more";
+      chev.style.transform = open ? "rotate(180deg)" : "";
+    });
+  })();
+</script>
+{% endblock %}

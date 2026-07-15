@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Tympany — Analyze{% endblock %}
+
+{% block body %}
+{% set llm_label_color = "hsl(var(--foreground))" if llm_provider else "hsl(var(--muted-foreground))" %}
+<div class="page">
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-title">Analyze BeWER report</div>
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); margin:0; line-height:1.6;">
+      Upload a BeWER report (.json) and Tympany will <strong style="color:hsl(var(--foreground));">provide a detailed analysis</strong> of every reference/generated text difference.
+    </p><br/>
+    <form method="post" action="/analyze" enctype="multipart/form-data" id="upload-form" data-processing="Analyzing report…">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; align-items:stretch;">
+        <div>
+          <label style="display:block; font-size:12px; color:hsl(var(--muted-foreground)); margin-bottom:6px; font-weight:500;">
+            BeWER report file (.json)
+          </label>
+          <input
+            type="file"
+            name="file"
+            id="file-input"
+            accept=".json"
+            required
+            style="font-size:13px; font-family:'Inter',sans-serif; color:hsl(var(--foreground));"
+          >
+          <div id="file-name" style="margin-top:10px; font-size:12px; color:hsl(var(--foreground)); font-weight:500; word-break:break-all;"></div>
+        </div>
+        <div
+          id="dropzone"
+          style="border:1.5px dashed hsl(var(--border)); border-radius:var(--radius); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:16px; text-align:center; cursor:pointer; transition:border-color 0.15s, background 0.15s;"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:hsl(var(--muted-foreground));"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span style="font-size:12px; color:hsl(var(--muted-foreground)); line-height:1.5;">Drag &amp; drop a BeWER report (.json) here</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom:22px; display:flex; align-items:center; gap:10px;">
+        {% if llm_provider %}
+        <input type="checkbox" name="use_llm" id="use_llm" value="on">
+        {% else %}
+        <input type="checkbox" name="use_llm" id="use_llm" value="on" disabled>
+        {% endif %}
+        <label for="use_llm" style="font-size:13px; color:{{ llm_label_color }};">
+          Use Corti Agentic Framework for second pass of low confidence errors.<br/>
+          {% if llm_provider %}
+            <span style="color:hsl(var(--muted-foreground)); font-size:12px;">(✔API credentials configured)</span>
+          {% else %}
+            <span style="color:hsl(var(--muted-foreground)); font-size:12px;">— Corti API credentials not configured</span>
+          {% endif %}
+        </label>
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="submit-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Analyze
+      </button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">How it works</div>
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); margin-bottom:16px; line-height:1.6;">
+      Upload a BeWER report and Tympany will classify every reference/generated text difference and classify each one:
+    </p>
+    <table style="border-collapse:collapse; width:100%; font-size:13px;">
+      <tr>
+        <td style="padding:8px 20px 8px 0; white-space:nowrap; font-weight:600; width:200px; vertical-align:top;" class="cls-formatting_error">Formatting error</td>
+        <td style="padding:8px 0; color:hsl(var(--muted-foreground)); line-height:1.6;"><strong>Low risk</strong></td><td style="padding:8px 0; color:hsl(var); line-height:1.6;"> Difference between reference and generated text for the written form for numbers, dates, or years.</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 20px 8px 0; white-space:nowrap; font-weight:600; vertical-align:top;" class="cls-replacement_candidate">Replacement candidate</td>
+        <td style="padding:8px 0; color:hsl(var(--muted-foreground)); line-height:1.6;"><strong>Low risk</strong></td><td style="padding:8px 0; color:hsl(var); line-height:1.6;"> Abbreviation, acronym, or other shorthand in reference that can be handled with a replacement rule defined in STT configuration.</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 20px 8px 0; white-space:nowrap; font-weight:600; vertical-align:top;" class="cls-context_dependent">Context-dependent</td>
+        <td style="padding:8px 0; color:hsl(var(--muted-foreground)); line-height:1.6;"><strong>Medium risk</strong> </td><td style="padding:8px 0; color:hsl(var); line-height:1.6;"> Spelling variant, compound boundary, or subtle error that likely does not change the meaning of the STT output but should be reviewed.</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 20px 8px 0; white-space:nowrap; font-weight:600; vertical-align:top;" class="cls-misrecognition">Misrecognition</td>
+        <td style="padding:8px 0; color:hsl(var(--muted-foreground)); line-height:1.6;"><strong>High risk</strong></td><td style="padding:8px 0; color:hsl(var); line-height:1.6;"> STT errors with the largest edit distances that may have clinical significance or otherwise alter the intended meaning.</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">History</div>
+    {% if history %}
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); margin-bottom:16px; line-height:1.6;">
+      Reopen a previous analysis to review it again — your edits are saved.
+    </p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Analyzed</th>
+          <th style="text-align:center;">Errors</th>
+          <th style="text-align:center;">Risk</th>
+          <th style="text-align:center;" title="Word / Character Error Rate — original → updated after a re-run">WER / CER</th>
+          <th style="text-align:center;" title="Medical Term Recall — original → updated after a re-run (higher is better)">MTR</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in history %}
+        <tr>
+          <td style="font-weight:500;">
+            <span class="row-name">
+              <a href="/history/{{ h.id }}" style="color:hsl(var(--foreground)); text-decoration:none; font-weight:600;">{{ h.filename }}</a>
+              {% if h.llm_used %}<span class="llm-badge">LLM</span>{% endif %}
+              <button type="button" class="rename-toggle" title="Rename" data-target="rn-{{ h.id }}" aria-label="Rename analysis">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+            </span>
+            <form id="rn-{{ h.id }}" class="rename-form" method="post" action="/history/{{ h.id }}/rename">
+              <input type="hidden" name="back" value="/analyze">
+              <input class="rename-input" type="text" name="name" value="{{ h.filename }}" maxlength="120" required>
+              <button type="submit" class="btn-icon" title="Save name">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </button>
+              <button type="button" class="btn-icon rename-cancel" title="Cancel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </form>
+          </td>
+          <td style="color:hsl(var(--muted-foreground)); white-space:nowrap;">
+            <time
+              class="history-created-at"
+              datetime="{{ h.created_at }}"
+              data-iso="{{ h.created_at }}"
+            >
+              {{ h.created_at[:10] }} <span style="opacity:0.7;">{{ h.created_at[11:16] }}</span>
+            </time>
+          </td>
+          <td class="mono" style="text-align:center; color:hsl(var(--muted-foreground));">
+            {{ h.counts.total }}{% if h.counts.excluded %} <span style="opacity:0.7;">(−{{ h.counts.excluded }})</span>{% endif %}
+          </td>
+          <td style="text-align:center; white-space:nowrap;">
+            {% if h.counts.by_risk.high %}<span class="badge badge-high" title="High risk">{{ h.counts.by_risk.high }}</span>{% endif %}
+            {% if h.counts.by_risk.medium %}<span class="badge badge-medium" title="Medium risk">{{ h.counts.by_risk.medium }}</span>{% endif %}
+            {% if h.counts.by_risk.low %}<span class="badge badge-low" title="Low risk">{{ h.counts.by_risk.low }}</span>{% endif %}
+          </td>
+          <td class="mono" style="text-align:center; color:hsl(var(--muted-foreground)); white-space:nowrap; font-size:11px;">
+            {% if h.metrics and (h.metrics.original_wer or h.metrics.updated_wer) %}
+              {{ h.metrics.original_wer or "—" }}{% if h.metrics.updated_wer %}<span style="opacity:0.7;">→{{ h.metrics.updated_wer }}</span>{% endif %}
+              <span style="opacity:0.4;"> / </span>
+              {{ h.metrics.original_cer or "—" }}{% if h.metrics.updated_cer %}<span style="opacity:0.7;">→{{ h.metrics.updated_cer }}</span>{% endif %}
+            {% else %}
+              <span style="opacity:0.4;">—</span>
+            {% endif %}
+          </td>
+          <td class="mono" style="text-align:center; color:hsl(var(--muted-foreground)); white-space:nowrap; font-size:11px;">
+            {% if h.metrics and h.metrics.original_mtr %}
+              {{ h.metrics.original_mtr }}{% if h.metrics.updated_mtr %}<span style="opacity:0.7;">→{{ h.metrics.updated_mtr }}</span>{% endif %}
+            {% else %}
+              <span style="opacity:0.4;">—</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right; white-space:nowrap;">
+            <div class="row-actions">
+              <a href="/history/{{ h.id }}" class="btn btn-secondary btn-sm" style="text-decoration:none;">Open</a>
+              <a href="/history/{{ h.id }}/download" class="btn-icon" title="Download results CSV">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </a>
+              <form method="post" action="/history/{{ h.id }}/delete" style="display:inline-flex;"
+                onsubmit="return confirm('Delete this analysis from history?');">
+                <button type="submit" class="btn-icon" title="Delete">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="font-size:13px; color:hsl(var(--muted-foreground)); line-height:1.6;">
+      No analyses yet — upload a report to get started.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  document.getElementById("upload-form").addEventListener("submit", function() {
+    const btn = document.getElementById("submit-btn");
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Analyzing…';
+    btn.disabled = true;
+  });
+
+  // ── File selection + drag-and-drop ─────────────────────────────────────────
+  (function () {
+    const input    = document.getElementById("file-input");
+    const dropzone = document.getElementById("dropzone");
+    const nameEl   = document.getElementById("file-name");
+    const BORDER   = "hsl(var(--border))";
+
+    function showName() {
+      nameEl.textContent = input.files.length ? input.files[0].name : "";
+    }
+    function setDragState(active) {
+      dropzone.style.borderColor = active ? "hsl(var(--ring))" : BORDER;
+      dropzone.style.background  = active ? "hsl(var(--accent))" : "transparent";
+    }
+
+    input.addEventListener("change", showName);
+    dropzone.addEventListener("click", () => input.click());
+    ["dragenter", "dragover"].forEach(evt =>
+      dropzone.addEventListener(evt, e => { e.preventDefault(); setDragState(true); })
+    );
+    ["dragleave", "dragend"].forEach(evt =>
+      dropzone.addEventListener(evt, e => { e.preventDefault(); setDragState(false); })
+    );
+    dropzone.addEventListener("drop", e => {
+      e.preventDefault();
+      setDragState(false);
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith(".json")) {
+        alert("Please drop a BeWER report (.json) file.");
+        return;
+      }
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      showName();
+    });
+  })();
+</script>
+{% endblock %}
