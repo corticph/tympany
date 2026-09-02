@@ -360,6 +360,37 @@
     </div>
   </div>
 
+  <!-- Per-speaker metrics -->
+  {% if has_per_speaker %}
+  <div id="per-speaker-card" style="margin-bottom:20px;">
+    <div class="metric-title" style="margin-bottom:10px;">Per-speaker evaluation</div>
+    <table class="data-table breakdown-table" style="max-width:700px;">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Speaker</th>
+          <th>WER (Original)</th>
+          <th>WER (Updated)</th>
+          <th>CER (Original)</th>
+          <th>CER (Updated)</th>
+          <th>Ref words</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for spk, m in metrics.per_speaker.items() %}
+        <tr>
+          <td style="text-align:left; font-weight:600;">{{ spk }}</td>
+          <td>{{ m.original_wer or "—" }}</td>
+          <td class="spk-upd-wer" data-speaker="{{ spk }}">{{ m.updated_wer or "—" }}</td>
+          <td>{{ m.original_cer or "—" }}</td>
+          <td class="spk-upd-cer" data-speaker="{{ spk }}">{{ m.updated_cer or "—" }}</td>
+          <td>{{ m.ref_words }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
   <!-- Stat boxes -->
   <div class="summary-grid">
     <div class="stat-box">
@@ -529,6 +560,15 @@
           <div class="sample-dropdown-list" id="sample-dropdown-list"></div>
         </div>
       </div>
+      {% if has_speakers %}
+      <label for="filter-speaker">Speaker</label>
+      <select id="filter-speaker" onchange="applyFilters()">
+        <option value="">All</option>
+        {% for spk in speakers %}
+        <option value="{{ spk }}">{{ spk }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
       <label>Classification</label>
       <select id="filter-cls" onchange="applyFilters()">
         <option value="">All</option>
@@ -884,6 +924,7 @@ function applyFilters() {
   const cls          = document.getElementById('filter-cls').value;
   const risk         = document.getElementById('filter-risk').value;
   const excludedMode = document.getElementById('filter-excluded').value;
+  const speaker      = document.getElementById('filter-speaker')?.value || '';
   const rows         = document.querySelectorAll('#edits-table tbody tr');
   let visible = 0;
   rows.forEach(row => {
@@ -896,6 +937,7 @@ function applyFilters() {
       (activeSamples.size === 0 || activeSamples.has(row.dataset.example)) &&
       (!cls || row.dataset.cls === cls) &&
       (!risk || row.dataset.risk === risk) &&
+      (!speaker || row.dataset.speaker === speaker) &&
       matchesExcluded;
     row.classList.toggle('hidden', !show);
     if (show) visible++;
@@ -1007,6 +1049,15 @@ function applyMetrics(m) {
   if (link && m.has_rerun) link.style.visibility = 'visible';
   const viewLink = document.getElementById('view-rerun-link');
   if (viewLink && m.has_rerun) viewLink.style.display = '';
+  // Per-speaker updated metrics
+  if (m.per_speaker) {
+    for (const [spk, vals] of Object.entries(m.per_speaker)) {
+      const werCell = document.querySelector(`.spk-upd-wer[data-speaker="${spk}"]`);
+      const cerCell = document.querySelector(`.spk-upd-cer[data-speaker="${spk}"]`);
+      if (werCell && vals.updated_wer) werCell.textContent = vals.updated_wer;
+      if (cerCell && vals.updated_cer) cerCell.textContent = vals.updated_cer;
+    }
+  }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

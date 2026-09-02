@@ -173,6 +173,14 @@
         <label for="normalization">Normalize text before scoring (lowercase text and strip punctuation, diacritics)</label>
       </div>
 
+      <div class="setting-row" style="margin-bottom:14px;" id="per-speaker-row" {% if mode != 'corti' %}style="display:none;"{% endif %}>
+        <input type="checkbox" name="per_speaker" id="per_speaker" value="on" {% if f.per_speaker != 'off' %}checked{% endif %}>
+        <label for="per_speaker">
+          Evaluate per speaker
+          <span style="color:hsl(var(--muted-foreground)); font-size:12px;">— split transcript by speaker and compute WER/CER for each</span>
+        </label>
+      </div>
+
       <div class="setting-row" style="margin-bottom:24px;">
         {% if llm_provider %}
         <input type="checkbox" name="use_llm" id="use_llm" value="on" {% if f.use_llm == 'on' %}checked{% endif %}>
@@ -256,6 +264,8 @@
       panePaste.style.display = mode === "paste" ? "" : "none";
       paneCsv.style.display = mode === "csv" ? "" : "none";
       paneCorti.style.display = mode === "corti" ? "" : "none";
+      const psRow = document.getElementById("per-speaker-row");
+      if (psRow) psRow.style.display = mode === "corti" ? "flex" : "none";
     }
     tabs.forEach(t => t.addEventListener("click", () => setMode(t.dataset.mode)));
   })();
