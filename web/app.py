@@ -236,6 +236,11 @@ def _results_context(
         "can_rerun": history.can_rerun(record),
         "is_authored": history.is_authored(record),
         "has_speakers": any(e.get("speaker") for e in record.get("edits", [])),
+        "has_per_speaker": bool((record.get("original_metrics") or {}).get("per_speaker")),
+        "speakers": sorted(set(
+            e.get("speaker", "") for e in record.get("edits", [])
+            if e.get("speaker")
+        )),
     }
 
 
@@ -416,6 +421,9 @@ class _ReportInputs:
     ref_word_speakers: Optional[list[list[str]]] = None
     gen_word_speakers: Optional[list[list[str]]] = None
     diarized: bool = False
+    ref_segments: Optional[list] = None
+    gen_segments: Optional[list] = None
+    per_speaker: bool = False
 
 
 def _form_samples(references: list[str], generateds: list[str]) -> list[dict]:
@@ -438,6 +446,7 @@ async def _prepare_report(
     terms_saved: str, terms_save_as: str,
     ref_file: Optional[UploadFile] = None,
     gen_file: Optional[UploadFile] = None,
+    per_speaker: str = "off",
 ):
     """Validate inputs and resolve medical terms for the create routes.
 
@@ -454,11 +463,12 @@ async def _prepare_report(
     }
     try:
         if input_mode == "corti":
-            rows, ref_ws, gen_ws, diarized = await _read_corti_rows(ref_file, gen_file)
+            rows, ref_ws, gen_ws, diarized, ref_segs, gen_segs = await _read_corti_rows(ref_file, gen_file)
         else:
             rows = await _read_rows(input_mode, reference, generated, csv_file)
             ref_ws = gen_ws = None
             diarized = False
+            ref_segs = gen_segs = None
         terms_content = await _resolve_terms(
             email, terms_mode, terms_text, terms_file, terms_saved, terms_save_as
         )
@@ -474,12 +484,21 @@ async def _prepare_report(
         ref_word_speakers=ref_ws,
         gen_word_speakers=gen_ws,
         diarized=diarized,
+        ref_segments=ref_segs,
+        gen_segments=gen_segs,
+        per_speaker=per_speaker == "on" and diarized,
     )
 
 
 async def _run_bewer(prep: _ReportInputs) -> dict:
     """Evaluate prep's rows with bewer (off the event loop), returning the envelope."""
     terms = list(_split_terms(prep.terms_content)) if prep.terms_content else None
+    if prep.per_speaker and prep.ref_segments and prep.gen_segments:
+        return await asyncio.to_thread(
+            bewer_eval.run_bewer_diarized,
+            prep.ref_segments, prep.gen_segments,
+            normalization=prep.normalize_on, medical_terms=terms,
+        )
     return await asyncio.to_thread(
         bewer_eval.run_bewer, prep.rows,
         normalization=prep.normalize_on, medical_terms=terms,
@@ -505,6 +524,7 @@ async def reports_generate(
     terms_save_as: str = Form(default=""),
     ref_file: Optional[UploadFile] = File(default=None),
     gen_file: Optional[UploadFile] = File(default=None),
+    per_speaker: str = Form(default="off"),
 ):
     """Generate a BeWER report only (no analysis); stay on the page to iterate."""
     redirect = _require_login(request)
@@ -516,7 +536,7 @@ async def reports_generate(
         generated=generated, csv_file=csv_file, normalization=normalization,
         use_llm=use_llm, terms_mode=terms_mode, terms_text=terms_text,
         terms_file=terms_file, terms_saved=terms_saved, terms_save_as=terms_save_as,
-        ref_file=ref_file, gen_file=gen_file,
+        ref_file=ref_file, gen_file=gen_file, per_speaker=per_speaker,
     )
     if not isinstance(prep, _ReportInputs):
         return prep  # a rendered error form
@@ -562,6 +582,7 @@ async def reports_new_submit(
     terms_save_as: str = Form(default=""),
     ref_file: Optional[UploadFile] = File(default=None),
     gen_file: Optional[UploadFile] = File(default=None),
+    per_speaker: str = Form(default="off"),
 ):
     """Generate a BeWER report and run the full Tympany analysis on it."""
     redirect = _require_login(request)
@@ -573,7 +594,7 @@ async def reports_new_submit(
         generated=generated, csv_file=csv_file, normalization=normalization,
         use_llm=use_llm, terms_mode=terms_mode, terms_text=terms_text,
         terms_file=terms_file, terms_saved=terms_saved, terms_save_as=terms_save_as,
-        ref_file=ref_file, gen_file=gen_file,
+        ref_file=ref_file, gen_file=gen_file, per_speaker=per_speaker,
     )
     if not isinstance(prep, _ReportInputs):
         return prep  # a rendered error form
@@ -1045,6 +1066,35 @@ async def history_rerun(request: Request, analysis_id: str):
 
     updated = dict(envelope["metrics"])
     updated["examples"] = len(rows)
+
+    # Per-speaker re-run: reconstruct corrected text per speaker and re-evaluate.
+    orig_metrics = record.get("original_metrics") or {}
+    if orig_metrics.get("per_speaker"):
+        speaker_rows = bewer_eval.build_rows_per_speaker(
+            record.get("samples", []), record.get("edits", [])
+        )
+        per_speaker_metrics: dict[str, dict] = {}
+        for spk, spk_rows in speaker_rows.items():
+            if not spk_rows:
+                continue
+            try:
+                spk_env = await asyncio.to_thread(
+                    bewer_eval.run_bewer, spk_rows,
+                    normalization=settings.get("normalization", True),
+                    medical_terms=terms,
+                )
+            except bewer_eval.BewerError:
+                continue
+            per_speaker_metrics[spk] = {
+                "wer": spk_env["metrics"].get("wer"),
+                "cer": spk_env["metrics"].get("cer"),
+                "mtr": spk_env["metrics"].get("mtr"),
+                "ref_words": sum(len(r[0].split()) for r in spk_rows),
+                "gen_words": sum(len(r[1].split()) for r in spk_rows),
+            }
+        if per_speaker_metrics:
+            updated["per_speaker"] = per_speaker_metrics
+
     history.set_bewer_rerun(email, analysis_id, updated, json.dumps(envelope))
     return JSONResponse({"ok": True, "metrics": history.metrics_view(
         history.load_analysis(email, analysis_id)
@@ -1330,13 +1380,21 @@ async def _read_rows(
 async def _read_corti_rows(
     ref_file: Optional[UploadFile],
     gen_file: Optional[UploadFile],
-) -> tuple[list[tuple[str, str]], Optional[list[list[str]]], Optional[list[list[str]]], bool]:
+) -> tuple[
+    list[tuple[str, str]],
+    Optional[list[list[str]]],
+    Optional[list[list[str]]],
+    bool,
+    Optional[list],
+    Optional[list],
+]:
     """Parse Corti diarized transcript JSON uploads into flat (ref, gen) rows.
 
-    Returns ``(rows, ref_word_speakers, gen_word_speakers, diarized)``. Each
-    Corti transcript JSON becomes one example. The segment texts are flattened
-    into a single string for bewer; the per-word speaker labels are preserved
-    so ``from_bewer`` can tag tokens.
+    Returns ``(rows, ref_word_speakers, gen_word_speakers, diarized,
+    ref_segments, gen_segments)``. Each Corti transcript JSON becomes one
+    example. The segment texts are flattened into a single string for bewer;
+    the per-word speaker labels and raw segments are preserved for
+    per-speaker evaluation and token tagging.
     """
     if ref_file is None or not ref_file.filename:
         raise ValueError("Upload a reference transcript JSON file.")
@@ -1381,7 +1439,7 @@ async def _read_corti_rows(
 
     if len(rows) > MAX_ROWS:
         raise ValueError(f"Too many examples ({len(rows)}); the limit is {MAX_ROWS}.")
-    return rows, ref_ws, gen_ws, diarized
+    return rows, ref_ws, gen_ws, diarized, ref_segments, gen_segments
 
 
 async def _resolve_terms(

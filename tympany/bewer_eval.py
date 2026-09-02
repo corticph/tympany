@@ -24,7 +24,10 @@ as liable to change.
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from typing import Optional, Sequence, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tympany.diarize import SpeakerSegment
 
 
 class BewerError(RuntimeError):
@@ -215,3 +218,107 @@ def build_rows(samples: list[dict], edits: list[dict]) -> list[tuple[str, str]]:
         )
         rows.append((ref, gen))
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Per-speaker evaluation (Phase 2)
+# ---------------------------------------------------------------------------
+
+def run_bewer_diarized(
+    ref_segments: "list[SpeakerSegment]",
+    gen_segments: "list[SpeakerSegment]",
+    *,
+    normalization: bool = True,
+    medical_terms: Optional[Sequence[str]] = None,
+) -> dict:
+    """Evaluate diarized transcripts both as a flat corpus and per speaker.
+
+    Returns the same JSON envelope as ``run_bewer`` (flat evaluation with
+    speaker-tagged tokens), augmented with a ``per_speaker`` dict mapping
+    each speaker label to its own metrics + word counts. The flat envelope
+    drives the edit table exactly as before; the per-speaker block is an
+    overlay for the results-page metrics display.
+    """
+    from .diarize import (
+        build_word_speakers,
+        distinct_speakers,
+        flatten_segments,
+        is_diarized,
+    )
+
+    ref_text = flatten_segments(ref_segments)
+    gen_text = flatten_segments(gen_segments)
+    ref_ws = [build_word_speakers(ref_segments)]
+    gen_ws = [build_word_speakers(gen_segments)]
+
+    envelope = run_bewer(
+        [(ref_text, gen_text)],
+        normalization=normalization,
+        medical_terms=medical_terms,
+        ref_word_speakers=ref_ws,
+        gen_word_speakers=gen_ws,
+    )
+
+    per_speaker: dict[str, dict] = {}
+    if is_diarized(ref_segments) or is_diarized(gen_segments):
+        for spk in distinct_speakers(ref_segments + gen_segments):
+            spk_ref = flatten_segments([s for s in ref_segments if s.label == spk])
+            spk_gen = flatten_segments([s for s in gen_segments if s.label == spk])
+            if not spk_ref and not spk_gen:
+                continue
+            try:
+                spk_env = run_bewer(
+                    [(spk_ref, spk_gen)],
+                    normalization=normalization,
+                    medical_terms=medical_terms,
+                )
+            except BewerError:
+                continue
+            per_speaker[spk] = {
+                "metrics": spk_env["metrics"],
+                "ref_words": len(spk_ref.split()),
+                "gen_words": len(spk_gen.split()),
+            }
+
+    envelope["per_speaker"] = per_speaker
+    envelope["settings"]["diarized"] = True
+    return envelope
+
+
+def build_rows_per_speaker(
+    samples: list[dict], edits: list[dict]
+) -> dict[str, list[tuple[str, str]]]:
+    """Reconstruct per-speaker (ref, corrected_gen) rows for a diarized re-run.
+
+    Groups tokens within each sample by their ``speaker`` field and
+    reconstructs corrected text independently per speaker, applying only
+    that speaker's excluded edits. Returns a dict mapping speaker label →
+    list of (ref, gen) rows (one per sample where that speaker appears).
+    """
+    edits_by_example: dict[str, list[dict]] = {}
+    for edit in edits:
+        edits_by_example.setdefault(str(edit.get("example", "")), []).append(edit)
+
+    speaker_rows: dict[str, list[tuple[str, str]]] = {}
+
+    for sample in samples:
+        example = str(sample.get("example", ""))
+        ref_tokens = sample.get("ref_tokens", [])
+        pred_tokens = sample.get("pred_tokens", [])
+        sample_edits = edits_by_example.get(example, [])
+
+        speakers: list[str] = []
+        for t in ref_tokens + pred_tokens:
+            spk = t.get("speaker", "")
+            if spk and spk not in speakers:
+                speakers.append(spk)
+
+        for spk in speakers:
+            spk_ref = [t for t in ref_tokens if t.get("speaker") == spk]
+            spk_pred = [t for t in pred_tokens if t.get("speaker") == spk]
+            spk_edits = [e for e in sample_edits if e.get("speaker") == spk]
+            ref, gen = reconstruct_example(spk_ref, spk_pred, spk_edits)
+            if ref.strip() or gen.strip():
+                speaker_rows.setdefault(spk, []).append((ref, gen))
+
+    return speaker_rows

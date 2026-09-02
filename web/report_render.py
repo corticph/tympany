@@ -209,6 +209,47 @@ def _example_lines(ex: dict, fallback_terms: list[tuple[str, ...]]) -> list[dict
     ]
 
 
+def _split_ops_by_speaker(
+    ex: dict,
+) -> list[tuple[str, list[dict]]]:
+    """Split an example's alignment ops into per-speaker groups.
+
+    Walks the ops tracking ref/gen token indices, assigns a speaker label
+    to each op (from ``ref_speakers`` for MATCH/SUBSTITUTE/DELETE,
+    ``hyp_speakers`` for INSERT), and groups consecutive ops with the same
+    speaker. Returns a list of ``(speaker_label, ops_list)`` tuples.
+
+    Ops with no speaker label (non-diarized) are grouped under an empty
+    string, so the caller can detect "no split needed" and render a single
+    block.
+    """
+    ops = ex.get("ops") or []
+    ref_spk = ex.get("ref_speakers") or []
+    hyp_spk = ex.get("hyp_speakers") or []
+    if not ref_spk and not hyp_spk:
+        return [("", list(ops))]
+
+    groups: list[tuple[str, list[dict]]] = []
+    ref_idx = 0
+    gen_idx = 0
+    for op in ops:
+        op_type = (op.get("type") or "").upper()
+        if op_type == "INSERT":
+            spk = hyp_spk[gen_idx] if gen_idx < len(hyp_spk) else ""
+            gen_idx += 1
+        else:
+            spk = ref_spk[ref_idx] if ref_idx < len(ref_spk) else ""
+            if op_type in ("MATCH", "SUBSTITUTE"):
+                gen_idx += 1
+            ref_idx += 1
+
+        if groups and groups[-1][0] == spk:
+            groups[-1][1].append(op)
+        else:
+            groups.append((spk, [op]))
+    return groups
+
+
 def _comma(n: int) -> str:
     return f"{n:,}"
 
@@ -240,15 +281,28 @@ def canal_view(envelope: dict) -> dict:
                 gen_chars += len(hyp)
         ref_spk = ex.get("ref_speakers") or []
         hyp_spk = ex.get("hyp_speakers") or []
-        speakers: list[str] = []
+        all_speakers: list[str] = []
         for s in ref_spk + hyp_spk:
-            if s and s not in speakers:
-                speakers.append(s)
-        examples.append({
-            "example": ex.get("example"),
-            "lines": _example_lines(ex, fallback_terms),
-            "speakers": speakers,
-        })
+            if s and s not in all_speakers:
+                all_speakers.append(s)
+
+        if all_speakers:
+            for spk, spk_ops in _split_ops_by_speaker(ex):
+                label = spk or all_speakers[0]
+                sub_ex = {"ops": spk_ops}
+                examples.append({
+                    "example": ex.get("example"),
+                    "speaker": label,
+                    "lines": _example_lines(sub_ex, fallback_terms),
+                    "speakers": all_speakers,
+                })
+        else:
+            examples.append({
+                "example": ex.get("example"),
+                "speaker": "",
+                "lines": _example_lines(ex, fallback_terms),
+                "speakers": [],
+            })
 
     mtr = metrics.get("mtr")
     summary = {
@@ -262,11 +316,26 @@ def canal_view(envelope: dict) -> dict:
         "gen_chars": _comma(gen_chars),
     }
 
+    per_speaker = envelope.get("per_speaker") or {}
+    per_speaker_rows = [
+        {
+            "label": label,
+            "wer": sp.get("metrics", {}).get("wer") or "—",
+            "cer": sp.get("metrics", {}).get("cer") or "—",
+            "mtr": sp.get("metrics", {}).get("mtr"),
+            "ref_words": _comma(sp.get("ref_words", 0)),
+            "gen_words": _comma(sp.get("gen_words", 0)),
+        }
+        for label, sp in per_speaker.items()
+    ]
+
     return {
         "summary": summary,
         "examples": examples,
         "show_mtr": bool(mtr),
         "show_speakers": any(ex.get("speakers") for ex in examples),
+        "show_per_speaker": bool(per_speaker_rows),
+        "per_speaker_rows": per_speaker_rows,
         "medical_terms": bool(key_terms),
         "normalization": bool(settings.get("normalization", True)),
     }

@@ -613,6 +613,7 @@ def set_bewer_rerun(
             "wer": updated_metrics.get("wer"),
             "cer": updated_metrics.get("cer"),
             "mtr": updated_metrics.get("mtr"),
+            "per_speaker": updated_metrics.get("per_speaker"),
         },
         "examples": updated_metrics.get("examples"),
         "run_at": _now_iso(),
@@ -647,6 +648,21 @@ def metrics_view(record: dict) -> dict:
     orig_mtr, upd_mtr = _pct(original.get("mtr")), _pct(updated.get("mtr"))
     mtr_improved = orig_mtr is not None and upd_mtr is not None and upd_mtr > orig_mtr
 
+    # Per-speaker metrics (Phase 2): merge original + updated into one view.
+    orig_ps = original.get("per_speaker") or {}
+    upd_ps = updated.get("per_speaker") or {}
+    per_speaker: dict[str, dict] = {}
+    for spk in list(orig_ps.keys()) + [s for s in upd_ps if s not in orig_ps]:
+        o = orig_ps.get(spk, {})
+        u = upd_ps.get(spk, {})
+        per_speaker[spk] = {
+            "original_wer": o.get("wer"),
+            "original_cer": o.get("cer"),
+            "updated_wer": u.get("wer"),
+            "updated_cer": u.get("cer"),
+            "ref_words": o.get("ref_words", 0),
+        }
+
     return {
         "original_wer": original.get("wer"),
         "original_cer": original.get("cer"),
@@ -656,6 +672,8 @@ def metrics_view(record: dict) -> dict:
         "updated_mtr": updated.get("mtr"),
         "mtr_improved": mtr_improved,
         "has_rerun": bool(updated.get("wer") or updated.get("cer")),
+        "per_speaker": per_speaker,
+        "has_per_speaker": bool(per_speaker),
     }
 
 

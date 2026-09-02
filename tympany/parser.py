@@ -162,15 +162,32 @@ def from_bewer(
 
 
 def metrics_from_bewer(envelope: dict) -> dict:
-    """Metrics dict from a bewer envelope (wer/cer/mtr + normalization)."""
+    """Metrics dict from a bewer envelope (wer/cer/mtr + normalization).
+
+    When the envelope carries ``per_speaker`` (from ``run_bewer_diarized``),
+    each speaker's metrics and word counts are included.
+    """
     metrics = envelope.get("metrics") or {}
     settings = envelope.get("settings") or {}
-    return {
+    result = {
         "wer": metrics.get("wer"),
         "cer": metrics.get("cer"),
         "mtr": metrics.get("mtr"),
         "normalization": settings.get("normalization", True),
     }
+    per_speaker = envelope.get("per_speaker") or {}
+    if per_speaker:
+        result["per_speaker"] = {
+            label: {
+                "wer": sp["metrics"].get("wer"),
+                "cer": sp["metrics"].get("cer"),
+                "mtr": sp["metrics"].get("mtr"),
+                "ref_words": sp.get("ref_words", 0),
+                "gen_words": sp.get("gen_words", 0),
+            }
+            for label, sp in per_speaker.items()
+        }
+    return result
 
 
 def reference_corpus(samples: list[Sample]) -> str:

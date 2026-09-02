@@ -103,6 +103,29 @@ def test_metrics_from_bewer():
     assert m["normalization"] is True
 
 
+def test_metrics_from_bewer_includes_per_speaker():
+    env = {
+        "metrics": {"wer": "10.00%", "cer": "5.00%", "mtr": None},
+        "settings": {"normalization": True, "diarized": True},
+        "per_speaker": {
+            "Speaker 0": {
+                "metrics": {"wer": "0.00%", "cer": "0.00%", "mtr": None},
+                "ref_words": 6,
+                "gen_words": 6,
+            },
+        },
+    }
+    m = metrics_from_bewer(env)
+    assert "per_speaker" in m
+    assert m["per_speaker"]["Speaker 0"]["wer"] == "0.00%"
+    assert m["per_speaker"]["Speaker 0"]["ref_words"] == 6
+
+
+def test_metrics_from_bewer_no_per_speaker():
+    m = metrics_from_bewer(ENVELOPE)
+    assert "per_speaker" not in m
+
+
 def test_reference_corpus_from_bewer_samples():
     samples = from_bewer(ENVELOPE)
     assert reference_corpus(samples) == "the patient has hypertension today\nblood pressure was elevated"
@@ -134,3 +157,63 @@ def test_run_bewer_live_honors_normalization_flag():
     assert [op["type"] for op in raw["examples"][0]["ops"]] == [
         "SUBSTITUTE", "SUBSTITUTE",
     ]
+
+
+def test_run_bewer_diarized_live():
+    bewer = pytest.importorskip("bewer")
+    from tympany.bewer_eval import run_bewer_diarized
+    from tympany.diarize import SpeakerSegment
+
+    ref_segs = [
+        SpeakerSegment(0, 0, "Hello what brings you in today", 0.4, 3.1),
+        SpeakerSegment(1, 0, "I have had a fever", 3.4, 7.2),
+    ]
+    gen_segs = [
+        SpeakerSegment(0, 0, "Hello what brings you in today", 0.4, 3.1),
+        SpeakerSegment(1, 0, "I have had a ever", 3.4, 7.2),
+    ]
+    env = run_bewer_diarized(ref_segs, gen_segs)
+
+    assert "per_speaker" in env
+    assert "Speaker 0" in env["per_speaker"]
+    assert "Speaker 1" in env["per_speaker"]
+    assert env["settings"]["diarized"] is True
+
+    spk0 = env["per_speaker"]["Speaker 0"]
+    spk1 = env["per_speaker"]["Speaker 1"]
+    assert spk0["metrics"]["wer"] == "0.00%"
+    assert spk1["metrics"]["wer"] != "0.00%"
+    assert spk0["ref_words"] == 6
+    assert spk1["ref_words"] == 5
+
+
+def test_build_rows_per_speaker():
+    from tympany.bewer_eval import build_rows_per_speaker
+
+    samples = [{
+        "example": 1,
+        "ref_tokens": [
+            {"cls": "ok", "text": "hello", "speaker": "Speaker 0"},
+            {"cls": "sub", "text": "fever", "speaker": "Speaker 1"},
+        ],
+        "pred_tokens": [
+            {"cls": "ok", "text": "hello", "speaker": "Speaker 0"},
+            {"cls": "sub", "text": "ever", "speaker": "Speaker 1"},
+        ],
+    }]
+    edits = [{
+        "example": 1, "speaker": "Speaker 1",
+        "ref": "fever", "gen": "ever",
+        "excluded": True,
+    }]
+    speaker_rows = build_rows_per_speaker(samples, edits)
+    assert "Speaker 0" in speaker_rows
+    assert "Speaker 1" in speaker_rows
+    # Speaker 0 had no errors → (ref, gen) identical
+    spk0 = speaker_rows["Speaker 0"][0]
+    assert spk0[0] == "hello"
+    assert spk0[1] == "hello"
+    # Speaker 1's error was excluded → corrected to ref
+    spk1 = speaker_rows["Speaker 1"][0]
+    assert spk1[0] == "fever"
+    assert spk1[1] == "fever"
