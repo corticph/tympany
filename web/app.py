@@ -484,8 +484,8 @@ async def _prepare_report(
         ref_word_speakers=ref_ws,
         gen_word_speakers=gen_ws,
         diarized=diarized,
-        ref_segments=ref_segs,
-        gen_segments=gen_segs,
+        ref_segments=[ref_segs] if ref_segs else None,
+        gen_segments=[gen_segs] if gen_segs else None,
         per_speaker=per_speaker == "on" and diarized,
     )
 
@@ -496,7 +496,7 @@ async def _run_bewer(prep: _ReportInputs) -> dict:
     if prep.per_speaker and prep.ref_segments and prep.gen_segments:
         return await asyncio.to_thread(
             bewer_eval.run_bewer_diarized,
-            prep.ref_segments, prep.gen_segments,
+            prep.ref_segments[0], prep.gen_segments[0],
             normalization=prep.normalize_on, medical_terms=terms,
         )
     return await asyncio.to_thread(
@@ -618,7 +618,10 @@ async def reports_new_submit(
     )
     llm_outcome: dict = {}
     edits = history.normalize_edits(
-        await asyncio.to_thread(classify_samples, samples, llm_provider, llm_outcome)
+        await asyncio.to_thread(
+            classify_samples, samples, llm_provider, llm_outcome,
+            ref_segments=prep.ref_segments, gen_segments=prep.gen_segments,
+        )
     )
     llm_used = bool(llm_provider) and not _llm_pass_failed(llm_outcome)
 

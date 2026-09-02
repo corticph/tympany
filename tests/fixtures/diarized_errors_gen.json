@@ -1,0 +1,53 @@
+{
+  "type": "transcript",
+  "data": [
+    {
+      "id": "gen-0001",
+      "transcript": "Good morning, what brings you in today?",
+      "final": true,
+      "speakerId": 0,
+      "participant": { "channel": 0 },
+      "time": { "start": 0.50, "end": 3.20 }
+    },
+    {
+      "id": "gen-0002",
+      "transcript": "I have had a ever and a cough for 3 days.",
+      "final": true,
+      "speakerId": 1,
+      "participant": { "channel": 0 },
+      "time": { "start": 3.50, "end": 7.80 }
+    },
+    {
+      "id": "gen-0003a",
+      "transcript": "I will prescribe you some antibiotic.",
+      "final": true,
+      "speakerId": 0,
+      "participant": { "channel": 0 },
+      "time": { "start": 8.10, "end": 11.00 }
+    },
+    {
+      "id": "gen-0003b",
+      "transcript": "Take them twice a day.",
+      "final": true,
+      "speakerId": 1,
+      "participant": { "channel": 0 },
+      "time": { "start": 11.00, "end": 12.40 }
+    },
+    {
+      "id": "gen-0004",
+      "transcript": "Thank you, doctor. When should I come back?",
+      "final": true,
+      "speakerId": 1,
+      "participant": { "channel": 0 },
+      "time": { "start": 12.70, "end": 15.90 }
+    },
+    {
+      "id": "gen-0006",
+      "transcript": "And drink plenty of fluids.",
+      "final": true,
+      "speakerId": 0,
+      "participant": { "channel": 0 },
+      "time": { "start": 19.00, "end": 21.00 }
+    }
+  ]
+}

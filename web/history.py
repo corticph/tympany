@@ -31,6 +31,7 @@ _CLASSIFICATIONS = [
     "context_dependent",
     "formatting_error",
     "replacement_candidate",
+    "diarization_error",
 ]
 _RISK_LEVELS = ["high", "medium", "low"]
 
