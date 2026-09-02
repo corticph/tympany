@@ -69,6 +69,9 @@ Prefer a clone and Poetry for development or source changes — see
 ## What you can do
 
 - **Create a BeWER report from text** — paste or upload reference/generated transcripts and Tympany runs bewer for you. *Generate report* produces the report (JSON) to view/download; *Generate & analyze* also runs the full classification.
+- **Import Corti diarized transcripts** — paste a Corti transcript JSON (WebSocket streams or REST `/transcripts` format) and Tympany parses speaker labels, flattens the text for evaluation, and tags every error row with its speaker.
+- **Per-speaker evaluation** — split a diarized transcript by speaker and compute WER/CER for each speaker individually, with per-speaker metrics shown alongside the overall figures.
+- **Diarization error analysis** — align reference and generated speaker turns by time overlap to detect speaker mismatches, merged/split turns, and missing/extra turns. A **diarization accuracy** metric (matched turns / total turns) is shown alongside WER/CER.
 - **Analyze a BeWER report** — upload an existing BeWER report (JSON) and classify every difference.
 - **Medical Term Recall (MTR)** — supply a medical-terms list and bewer additionally reports how many of those terms the generated text captured. Save lists for reuse, or **extract** them automatically from a BeWER report.
 - **Review & iterate** — reclassify, exclude, flag, edit descriptions (all autosaved), then **Re-run** to measure the impact of excluded errors. Export results or flagged rows.
@@ -85,6 +88,7 @@ The top nav has three sections: **Home** (landing page with these entry points p
 | **Replacement candidate** | Low | Abbreviation or shorthand fixable with a replacement rule |
 | **Context-dependent** | Medium | Spelling variant or compound boundary — meaning likely preserved, but needs review |
 | **Misrecognition** | High | Large edit distance errors that may have clinical significance or alter intended meaning |
+| **Diarization error** | Medium/High | Speaker assignment problem — wrong speaker, merged/split turns, or missing/extra turns |
 
 ---
 
@@ -193,9 +197,13 @@ Run flags for `./start.sh`: `HOST`, `PORT`, `WEB_CONCURRENCY`, and `TYMPANY_DEV=
 
 On the **Create** page:
 
-- **Input** — paste reference and generated text (one example per line, paired by position) or upload a CSV with `ref`/`gen` columns.
+- **Input** — three modes:
+  - **Paste text** — paste reference and generated text (one example per line, paired by position).
+  - **Upload CSV** — upload a CSV with `ref`/`gen` columns.
+  - **Import Corti transcript** — paste or upload a Corti transcript JSON. Both WebSocket streams format (`transcript`/`speakerId`/`participant.channel`/seconds) and REST `/transcripts` format (`text`/`channel`/milliseconds) are auto-detected. Speaker labels are parsed from `speakerId` and `channel`; text is flattened for evaluation and each edit row is tagged with its speaker. Use this to evaluate diarized transcripts directly without manually flattening them.
 - **Medical terms** *(optional)* — paste, upload a `.txt` (one term per line), or pick a saved list to compute Medical Term Recall.
 - **Normalization** — toggle text normalization before scoring.
+- **Evaluate per speaker** *(visible with Corti transcript input)* — split the transcript by speaker and compute WER/CER for each speaker individually. Per-speaker metrics appear on the results page and in the BeWER report view.
 - **Generate report** runs bewer and keeps you on the page to view/download the report (JSON) and iterate; each generation is saved under **Generated BeWER reports**.
 - **Generate & analyze** runs bewer *and* the full Tympany classification, landing you on the results page.
 
@@ -219,7 +227,9 @@ Supplying a medical-terms file makes bewer compute **Medical Term Recall (MTR)**
 
 On the results page each error is one editable row: reclassify it, edit its description, **Exclude** it (drops it from counts and from a re-run), or **Flag** it. Edits autosave to your history.
 
-- **Export results** — every row in its current edited state.
+When the transcript is diarized, each row also shows its **speaker** label, and a **Speaker** filter lets you view errors for a single speaker. The classification dropdown includes **Diarization error** as an option, and the breakdown table and filters include a diarization column.
+
+- **Export results** — every row in its current edited state (includes a `speaker` column when diarized).
 - **Export flags** — only flagged rows, with `ref_context`/`gen_context` columns holding the full reference/generated text of each flagged error's example.
 - For reports created in Tympany: **Download BeWER report** (the input report JSON) and **Download CSV** (the ref/gen source). The input and re-run reports can also be viewed inline from the links above the metrics.
 
@@ -230,6 +240,43 @@ On the results page each error is one editable row: reclassify it, edit its desc
 The results page shows **WER** and **CER** from the report alongside an **Updated** figure. **Re-run** reconstructs the dataset with every **excluded** error corrected back to the reference, re-evaluates it with bewer (reusing the same medical terms for MTR), and reports the resulting WER/CER/MTR — measuring the impact of removing those errors. The regenerated report (JSON) is downloadable and the original → updated figures appear in the History table.
 
 > **Comparability:** **Original** figures come from the initial evaluation; **Updated** figures are recomputed by re-evaluating the reconstructed text with bewer (same medical terms). Treat the difference as the *delta from removing excluded errors*, not two independently-baselined numbers.
+
+---
+
+## Diarized transcript support
+
+Tympany can import Corti transcripts that include speaker diarization metadata and evaluate them with speaker-aware analysis.
+
+### Importing Corti transcripts
+
+On the **Create** page, select **Import Corti transcript** to paste or upload a Corti transcript JSON. Tympany auto-detects the format:
+
+- **WebSocket streams** — segments arrive as `{ transcript, speakerId, participant: { channel }, time: { start, end } }` with times in seconds. Segments are sorted by start time.
+- **REST `/transcripts`** — segments arrive as `{ text, speakerId, channel, start, end }` with times in milliseconds.
+
+`speakerId` values of `0`–`3` indicate diarized speakers; `-1` means diarization is off (the segment is labeled by channel only). Channel is audio routing and is independent from speaker assignment.
+
+The parser (`tympany/diarize.py`) flattens segment texts into a single string for bewer evaluation and builds a per-word speaker label list so that every token, diff group, and error row on the results page is tagged with its speaker.
+
+### Per-speaker evaluation
+
+When **Evaluate per speaker** is checked (available with Corti transcript input), Tympany splits the transcript by speaker and runs bewer separately for each speaker's text. The results page shows a per-speaker metrics table (WER, CER, updated WER/CER, ref word count) alongside the overall figures. Re-run also recomputes per-speaker metrics. The BeWER report view shows alignment examples split by speaker.
+
+### Diarization error analysis
+
+When both the reference and generated sides are diarized, Tympany aligns speaker turns by time overlap and detects five types of diarization errors:
+
+| Error type | Description | Risk |
+|---|---|---|
+| **Speaker mismatch** | A generated segment covers the same time range as a reference segment but attributes the speech to a different speaker | Medium |
+| **Merged turns** | Two or more reference segments (different speakers) are covered by a single generated segment | Medium |
+| **Split turns** | One reference segment is covered by two or more generated segments attributed to different speakers | Medium |
+| **Missing turn** | A reference segment has no overlapping generated segment | High |
+| **Extra turn** | A generated segment has no overlapping reference segment | High |
+
+These appear as a **Diarization error** classification on the results page (with its own color, filter option, and breakdown column), alongside the existing misrecognition/formatting/context-dependent classifications.
+
+A **diarization accuracy** metric (matched turns / total turns) is computed and displayed on both the results page and the BeWER report view when diarization data is present. A turn is "matched" when its best-overlapping counterpart (coverage ≥ 50%) has the same `speakerId`.
 
 ---
 
@@ -256,6 +303,8 @@ Each diff group passes through an ordered rule chain in `tympany/categorize.py`;
 | `rule_latin_greek_spelling` | Latin/Greek spelling variant (`ae`↔`e`, `c`↔`k`, etc.) |
 | `rule_spelling_close` | Levenshtein distance ≤ 2 or similarity ≥ 0.8 |
 | `rule_other` | Fallback — `misrecognition` |
+
+When diarization data is present, diarization errors (detected by `tympany/diarize_errors.py`) are classified separately as **diarization_error** — see [Diarized transcript support](#diarized-transcript-support).
 
 Each edit also gets token ratio, character distance, and similarity score appended to its detail (shown as a tooltip on the Risk badge).
 
@@ -290,12 +339,15 @@ tympany/
   data.py         — Medical word lists and abbreviations (EN, FR, DE, de-CH, DA)
   corti.py        — Corti Agentic Framework client (classifier + term-extractor agents)
   ner.py          — Optional local medical-entity NER backend (ALPHA, off by default)
-  bewer_eval.py   — bewer evaluation (run_bewer) + re-run reconstruction
+  diarize.py      — Parse Corti diarized transcript JSON (streams + REST) into speaker-tagged segments
+  diarize_errors.py — Align speaker turns by time overlap; detect 5 diarization error types + accuracy metric
+  bewer_eval.py   — bewer evaluation (run_bewer, run_bewer_diarized) + re-run reconstruction
 web/
   app.py          — FastAPI application: auth, home, create, analyze, history, terms
   serve.py        — web-server console entry point (tympany-serve)
   history.py      — Per-user analysis + generated-report storage
   terms.py        — Saved medical-term lists
+  report_render.py — BeWER report rendering (speaker-split examples, per-speaker metrics, diarization accuracy)
   templates/      — Jinja2 templates (base, login, home, create, analyze, results, reports_new, terms_edit, bewer_report)
   static/         — Static assets
 pyproject.toml    — Python project metadata in Poetry format; poetry.lock pins versions
@@ -333,6 +385,7 @@ corti_agent.json                  cached Corti agent ids (classifier, term_extra
 - The rule chain in `tympany/categorize.py` is ordered — first match wins. New rules go above `rule_other`.
 - `tympany/data.py` holds word lists per language. Add abbreviations or a new language's number words here before reaching for the LLM.
 - `parser.from_bewer` maps bewer alignment ops to diff groups; `tympany/bewer_eval.py` wraps the bewer library (pinned alpha — watch for API changes).
+- `tympany/diarize.py` parses Corti transcript JSON (streams and REST formats) into `SpeakerSegment` objects; `tympany/diarize_errors.py` aligns speaker turns and detects diarization errors. bewer itself has no diarization support — all speaker logic is wrapped around flat-text bewer calls.
 
 ### Tests
 
@@ -341,7 +394,7 @@ poetry install          # includes the dev group (pytest)
 poetry run pytest
 ```
 
-The suite (`tests/`) covers the saved-term store, input validation, routing/redirects, and term extraction (the Corti agent call is mocked, so no credentials or network are needed).
+The suite (`tests/`) covers the saved-term store, input validation, routing/redirects, term extraction, Corti transcript parsing, diarization error detection, per-speaker evaluation, and report rendering (the Corti agent call is mocked, so no credentials or network are needed).
 
 ---
 
