@@ -38,6 +38,12 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from tympany import bewer_eval, corti
 from tympany.classify import classify_samples
+from tympany.diarize import (
+    build_word_speakers,
+    flatten_segments,
+    is_diarized,
+    parse_corti_transcript_json,
+)
 from tympany.llm import detect_provider
 from tympany.parser import from_bewer, metrics_from_bewer, reference_corpus, samples_to_payload
 from web import history, report_render, terms
@@ -229,6 +235,7 @@ def _results_context(
         "metrics": history.metrics_view(record),
         "can_rerun": history.can_rerun(record),
         "is_authored": history.is_authored(record),
+        "has_speakers": any(e.get("speaker") for e in record.get("edits", [])),
     }
 
 
@@ -406,6 +413,9 @@ class _ReportInputs:
     report_name: str
     normalize_on: bool
     input_csv: str
+    ref_word_speakers: Optional[list[list[str]]] = None
+    gen_word_speakers: Optional[list[list[str]]] = None
+    diarized: bool = False
 
 
 def _form_samples(references: list[str], generateds: list[str]) -> list[dict]:
@@ -426,6 +436,8 @@ async def _prepare_report(
     csv_file: Optional[UploadFile], normalization: str, use_llm: str,
     terms_mode: str, terms_text: str, terms_file: Optional[UploadFile],
     terms_saved: str, terms_save_as: str,
+    ref_file: Optional[UploadFile] = None,
+    gen_file: Optional[UploadFile] = None,
 ):
     """Validate inputs and resolve medical terms for the create routes.
 
@@ -441,7 +453,12 @@ async def _prepare_report(
         "terms_saved": terms_saved, "terms_save_as": terms_save_as,
     }
     try:
-        rows = await _read_rows(input_mode, reference, generated, csv_file)
+        if input_mode == "corti":
+            rows, ref_ws, gen_ws, diarized = await _read_corti_rows(ref_file, gen_file)
+        else:
+            rows = await _read_rows(input_mode, reference, generated, csv_file)
+            ref_ws = gen_ws = None
+            diarized = False
         terms_content = await _resolve_terms(
             email, terms_mode, terms_text, terms_file, terms_saved, terms_save_as
         )
@@ -454,6 +471,9 @@ async def _prepare_report(
         report_name=_safe_report_name(name),
         normalize_on=normalization == "on",
         input_csv=_rows_to_csv(rows),
+        ref_word_speakers=ref_ws,
+        gen_word_speakers=gen_ws,
+        diarized=diarized,
     )
 
 
@@ -463,6 +483,8 @@ async def _run_bewer(prep: _ReportInputs) -> dict:
     return await asyncio.to_thread(
         bewer_eval.run_bewer, prep.rows,
         normalization=prep.normalize_on, medical_terms=terms,
+        ref_word_speakers=prep.ref_word_speakers,
+        gen_word_speakers=prep.gen_word_speakers,
     )
 
 
@@ -481,6 +503,8 @@ async def reports_generate(
     terms_file: Optional[UploadFile] = File(default=None),
     terms_saved: str = Form(default=""),
     terms_save_as: str = Form(default=""),
+    ref_file: Optional[UploadFile] = File(default=None),
+    gen_file: Optional[UploadFile] = File(default=None),
 ):
     """Generate a BeWER report only (no analysis); stay on the page to iterate."""
     redirect = _require_login(request)
@@ -492,6 +516,7 @@ async def reports_generate(
         generated=generated, csv_file=csv_file, normalization=normalization,
         use_llm=use_llm, terms_mode=terms_mode, terms_text=terms_text,
         terms_file=terms_file, terms_saved=terms_saved, terms_save_as=terms_save_as,
+        ref_file=ref_file, gen_file=gen_file,
     )
     if not isinstance(prep, _ReportInputs):
         return prep  # a rendered error form
@@ -535,6 +560,8 @@ async def reports_new_submit(
     terms_file: Optional[UploadFile] = File(default=None),
     terms_saved: str = Form(default=""),
     terms_save_as: str = Form(default=""),
+    ref_file: Optional[UploadFile] = File(default=None),
+    gen_file: Optional[UploadFile] = File(default=None),
 ):
     """Generate a BeWER report and run the full Tympany analysis on it."""
     redirect = _require_login(request)
@@ -546,6 +573,7 @@ async def reports_new_submit(
         generated=generated, csv_file=csv_file, normalization=normalization,
         use_llm=use_llm, terms_mode=terms_mode, terms_text=terms_text,
         terms_file=terms_file, terms_saved=terms_saved, terms_save_as=terms_save_as,
+        ref_file=ref_file, gen_file=gen_file,
     )
     if not isinstance(prep, _ReportInputs):
         return prep  # a rendered error form
@@ -562,7 +590,11 @@ async def reports_new_submit(
             error=f"BeWER could not generate a report: {exc}",
         )
 
-    samples = from_bewer(envelope, file_stem=prep.report_name)
+    samples = from_bewer(
+        envelope, file_stem=prep.report_name,
+        ref_word_speakers=prep.ref_word_speakers,
+        gen_word_speakers=prep.gen_word_speakers,
+    )
     llm_outcome: dict = {}
     edits = history.normalize_edits(
         await asyncio.to_thread(classify_samples, samples, llm_provider, llm_outcome)
@@ -578,10 +610,11 @@ async def reports_new_submit(
 
     source = {
         "kind": "authored",
-        "input": "csv" if input_mode == "csv" else "paste",
+        "input": "corti" if input_mode == "corti" else ("csv" if input_mode == "csv" else "paste"),
         "rows": len(prep.rows),
         "settings": {"normalization": prep.normalize_on},
         "medical_terms": bool(prep.terms_content),
+        "diarized": prep.diarized,
     }
     analysis_id = history.save_analysis(
         email, filename, llm_used, edits,
@@ -1292,6 +1325,63 @@ async def _read_rows(
     if len(rows) > MAX_ROWS:
         raise ValueError(f"Too many examples ({len(rows)}); the limit is {MAX_ROWS}.")
     return rows
+
+
+async def _read_corti_rows(
+    ref_file: Optional[UploadFile],
+    gen_file: Optional[UploadFile],
+) -> tuple[list[tuple[str, str]], Optional[list[list[str]]], Optional[list[list[str]]], bool]:
+    """Parse Corti diarized transcript JSON uploads into flat (ref, gen) rows.
+
+    Returns ``(rows, ref_word_speakers, gen_word_speakers, diarized)``. Each
+    Corti transcript JSON becomes one example. The segment texts are flattened
+    into a single string for bewer; the per-word speaker labels are preserved
+    so ``from_bewer`` can tag tokens.
+    """
+    if ref_file is None or not ref_file.filename:
+        raise ValueError("Upload a reference transcript JSON file.")
+    if gen_file is None or not gen_file.filename:
+        raise ValueError("Upload a generated transcript JSON file.")
+    if not ref_file.filename.lower().endswith(".json"):
+        raise ValueError("Reference file must be a .json Corti transcript.")
+    if not gen_file.filename.lower().endswith(".json"):
+        raise ValueError("Generated file must be a .json Corti transcript.")
+
+    ref_raw = await ref_file.read()
+    gen_raw = await gen_file.read()
+    for raw, label in ((ref_raw, "Reference"), (gen_raw, "Generated")):
+        if len(raw) > MAX_UPLOAD_BYTES:
+            raise ValueError(f"{label} file is too large (limit {MAX_UPLOAD_BYTES // (1024 * 1024)} MB).")
+
+    try:
+        ref_segments = parse_corti_transcript_json(_decode_upload(ref_raw))
+    except ValueError as exc:
+        raise ValueError(f"Reference transcript: {exc}")
+    try:
+        gen_segments = parse_corti_transcript_json(_decode_upload(gen_raw))
+    except ValueError as exc:
+        raise ValueError(f"Generated transcript: {exc}")
+
+    if not ref_segments:
+        raise ValueError("No transcript segments found in the reference file.")
+    if not gen_segments:
+        raise ValueError("No transcript segments found in the generated file.")
+
+    ref_text = flatten_segments(ref_segments)
+    gen_text = flatten_segments(gen_segments)
+    if not ref_text.strip():
+        raise ValueError("Reference transcript segments contain no text.")
+    if not gen_text.strip():
+        raise ValueError("Generated transcript segments contain no text.")
+
+    rows: list[tuple[str, str]] = [(ref_text, gen_text)]
+    ref_ws = [build_word_speakers(ref_segments)]
+    gen_ws = [build_word_speakers(gen_segments)]
+    diarized = is_diarized(ref_segments) or is_diarized(gen_segments)
+
+    if len(rows) > MAX_ROWS:
+        raise ValueError(f"Too many examples ({len(rows)}); the limit is {MAX_ROWS}.")
+    return rows, ref_ws, gen_ws, diarized
 
 
 async def _resolve_terms(

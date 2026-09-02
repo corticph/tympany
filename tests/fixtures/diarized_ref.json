@@ -1,0 +1,37 @@
+{
+  "type": "transcript",
+  "data": [
+    {
+      "id": "a1b2c3d4-0000-0000-0000-000000000001",
+      "transcript": "Hello, what brings you in today?",
+      "final": true,
+      "speakerId": 0,
+      "participant": { "channel": 0 },
+      "time": { "start": 0.40, "end": 3.10 }
+    },
+    {
+      "id": "a1b2c3d4-0000-0000-0000-000000000002",
+      "transcript": "I've had a fever and a cough for three days.",
+      "final": true,
+      "speakerId": 1,
+      "participant": { "channel": 0 },
+      "time": { "start": 3.40, "end": 7.20 }
+    },
+    {
+      "id": "a1b2c3d4-0000-0000-0000-000000000003",
+      "transcript": "I'll prescribe you some antibiotics.",
+      "final": true,
+      "speakerId": 0,
+      "participant": { "channel": 0 },
+      "time": { "start": 7.50, "end": 10.80 }
+    },
+    {
+      "id": "a1b2c3d4-0000-0000-0000-000000000004",
+      "transcript": "Thank you, doctor.",
+      "final": true,
+      "speakerId": 1,
+      "participant": { "channel": 0 },
+      "time": { "start": 11.00, "end": 12.50 }
+    }
+  ]
+}

@@ -600,9 +600,15 @@
             data-rc="{{ e.replacement_candidate }}"
             data-excluded="{{ 'true' if e.excluded else 'false' }}"
             data-flagged="{{ 'true' if e.flagged else 'false' }}"
+            data-speaker="{{ e.speaker or '' }}"
           >
             <td class="mono" style="color:hsl(var(--muted-foreground));">{{ loop.index }}</td>
-            <td style="color:hsl(var(--muted-foreground)); font-size:12px; font-weight:600; white-space:nowrap;">Ex.&nbsp;{{ e.example }}</td>
+            <td style="color:hsl(var(--muted-foreground)); font-size:12px; font-weight:600; white-space:nowrap;">
+              Ex.&nbsp;{{ e.example }}
+              {% if has_speakers and e.speaker %}
+              <div style="font-size:10px; font-weight:400; color:hsl(var(--muted-foreground)); opacity:0.7; margin-top:2px;">{{ e.speaker }}</div>
+              {% endif %}
+            </td>
             <td class="mono" style="color:hsl(var(--muted-foreground));">{{ e.ref }}</td>
             <td class="mono" style="color:hsl(var(--foreground)); font-weight:500;">{{ e.gen }}</td>
             <td>
@@ -731,6 +737,7 @@ function collectRows() {
   return [...document.querySelectorAll('#edits-table tbody tr')].map(row => ({
     file:                  row.dataset.file    || '',
     example:               row.dataset.example || '',
+    speaker:               row.dataset.speaker || '',
     ref:                   row.dataset.ref     || '',
     gen:                   row.dataset.gen     || '',
     op:                    row.dataset.op      || '',
@@ -899,7 +906,7 @@ function applyFilters() {
 // ── CSV download (client-side, reflects all edits) ───────────────────────────
 function downloadCSV() {
   const rows = [...document.querySelectorAll('#edits-table tbody tr')];
-  const header = ['file','example','ref','gen','op','classification','risk_level','error_description','excluded','flagged','detail'];
+  const header = ['file','example','speaker','ref','gen','op','classification','risk_level','error_description','excluded','flagged','detail'];
   const lines = [header.join(',')];
 
   rows.forEach(row => {
@@ -912,6 +919,7 @@ function downloadCSV() {
     const cells = [
       csvEsc(row.dataset.file    || ''),
       csvEsc(row.dataset.example || ''),
+      csvEsc(row.dataset.speaker || ''),
       csvEsc(row.dataset.ref     || ''),
       csvEsc(row.dataset.gen     || ''),
       csvEsc(row.dataset.op      || ''),

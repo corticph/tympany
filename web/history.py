@@ -98,6 +98,7 @@ def normalize_edits(rows: list[dict]) -> list[dict]:
         out.append({
             "file": row.get("file", ""),
             "example": row.get("example", ""),
+            "speaker": row.get("speaker", ""),
             "ref": row.get("ref", ""),
             "gen": row.get("gen", ""),
             "op": row.get("op", ""),
@@ -257,7 +258,7 @@ def delete_analysis(email: str, analysis_id: str) -> bool:
 # Column order matches the client-side exporter in results.html so server and
 # browser downloads produce byte-identical CSVs from the same edit state.
 CSV_HEADER = [
-    "file", "example", "ref", "gen", "op",
+    "file", "example", "speaker", "ref", "gen", "op",
     "classification", "risk_level", "error_description",
     "excluded", "flagged", "detail",
 ]
@@ -273,6 +274,7 @@ def to_csv(record: dict) -> str:
         writer.writerow([
             e.get("file", ""),
             e.get("example", ""),
+            e.get("speaker", ""),
             e.get("ref", ""),
             e.get("gen", ""),
             e.get("op", ""),
@@ -293,7 +295,7 @@ def to_csv(record: dict) -> str:
 # Like CSV_HEADER but adds the full example reference / generated text so a
 # reviewer has the context surrounding each flagged error, not just the diff.
 FLAGS_CSV_HEADER = [
-    "file", "example", "ref", "gen", "op",
+    "file", "example", "speaker", "ref", "gen", "op",
     "classification", "risk_level", "error_description", "detail",
     "ref_context", "gen_context",
 ]
@@ -326,6 +328,7 @@ def flags_to_csv(record: dict) -> str:
         writer.writerow([
             e.get("file", ""),
             e.get("example", ""),
+            e.get("speaker", ""),
             e.get("ref", ""),
             e.get("gen", ""),
             e.get("op", ""),

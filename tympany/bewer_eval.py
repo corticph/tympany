@@ -46,11 +46,16 @@ def run_bewer(
     *,
     normalization: bool = True,
     medical_terms: Optional[Sequence[str]] = None,
+    ref_word_speakers: Optional[list[list[str]]] = None,
+    gen_word_speakers: Optional[list[list[str]]] = None,
 ) -> dict:
     """Evaluate (ref, gen) ``rows`` with bewer and return the JSON envelope.
 
     ``medical_terms`` enables the key-term-found (MTR) metric. ``normalization``
     is recorded in settings; bewer applies its default standardisation pipeline.
+    ``ref_word_speakers`` and ``gen_word_speakers`` (one list per example, one
+    speaker label per word) are embedded in the envelope so downstream
+    consumers (report renderer, parser) can tag tokens with their speaker.
     """
     try:
         from bewer import Dataset
@@ -85,6 +90,10 @@ def run_bewer(
         ex = ds.examples[i]
         ops = [op.to_dict() for op in align.get_example_metric(ex).alignment]
         entry = {"example": i + 1, "ref": ref, "hyp": gen, "ops": ops}
+        if ref_word_speakers and i < len(ref_word_speakers):
+            entry["ref_speakers"] = ref_word_speakers[i]
+        if gen_word_speakers and i < len(gen_word_speakers):
+            entry["hyp_speakers"] = gen_word_speakers[i]
         # Record where bewer located each key term (as token-index [start, stop)
         # slices, aligned 1:1 with the ops' tokens) so the report can box exactly
         # the terms MTR counts — no second, divergent matcher. Best-effort: bewer

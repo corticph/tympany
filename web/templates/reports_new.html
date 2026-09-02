@@ -70,8 +70,9 @@
 
       <!-- Input mode toggle -->
       <div style="margin-bottom:18px; display:inline-flex;">
-        <button type="button" class="mode-tab {% if mode != 'csv' %}active{% endif %}" data-mode="paste">Paste text</button>
+        <button type="button" class="mode-tab {% if mode != 'csv' and mode != 'corti' %}active{% endif %}" data-mode="paste">Paste text</button>
         <button type="button" class="mode-tab {% if mode == 'csv' %}active{% endif %}" data-mode="csv">Upload CSV</button>
+        <button type="button" class="mode-tab {% if mode == 'corti' %}active{% endif %}" data-mode="corti">Import Corti transcript</button>
       </div>
 
       <!-- Paste mode: one sample (example) per row -->
@@ -111,6 +112,21 @@
         <label class="field-label" for="csv_file">CSV file</label>
         <input class="text-input" type="file" name="csv_file" id="csv_file" accept=".csv">
         <div class="hint">A CSV with a reference column and a generated column — <code>ref</code> and <code>gen</code> (the same ref/gen format BeWER consumes). One row per example.</div>
+      </div>
+
+      <!-- Corti transcript mode -->
+      <div id="pane-corti" style="{% if mode != 'corti' %}display:none;{% endif %}">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div>
+            <label class="field-label" for="ref_file">Reference transcript (ground truth)</label>
+            <input class="text-input" type="file" name="ref_file" id="ref_file" accept=".json">
+          </div>
+          <div>
+            <label class="field-label" for="gen_file">Generated transcript (model output)</label>
+            <input class="text-input" type="file" name="gen_file" id="gen_file" accept=".json">
+          </div>
+        </div>
+        <div class="hint">Upload Corti transcript JSON (streams or REST <code>/transcripts</code> format). Speaker labels are parsed from <code>speakerId</code> and <code>channel</code>; text is flattened for evaluation and each edit row is tagged with its speaker.</div>
       </div>
 
       <!-- Medical terms (optional → computes Medical Term Recall) -->
@@ -232,12 +248,14 @@
     const tabs = document.querySelectorAll(".mode-tab");
     const panePaste = document.getElementById("pane-paste");
     const paneCsv = document.getElementById("pane-csv");
+    const paneCorti = document.getElementById("pane-corti");
 
     function setMode(mode) {
       hidden.value = mode;
       tabs.forEach(t => t.classList.toggle("active", t.dataset.mode === mode));
-      panePaste.style.display = mode === "csv" ? "none" : "";
+      panePaste.style.display = mode === "paste" ? "" : "none";
       paneCsv.style.display = mode === "csv" ? "" : "none";
+      paneCorti.style.display = mode === "corti" ? "" : "none";
     }
     tabs.forEach(t => t.addEventListener("click", () => setMode(t.dataset.mode)));
   })();

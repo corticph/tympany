@@ -35,6 +35,51 @@ def test_from_bewer_builds_samples_and_diffs():
     assert samples[1].diffs == ()  # identical example → no diffs
 
 
+def test_from_bewer_tags_tokens_with_speakers():
+    ref_ws = [["Speaker 0", "Speaker 0", "Speaker 0", "Speaker 0", "Speaker 1"]]
+    gen_ws = [["Speaker 0", "Speaker 0", "Speaker 0", "Speaker 1"]]
+    samples = from_bewer(ENVELOPE, ref_word_speakers=ref_ws, gen_word_speakers=gen_ws)
+    assert len(samples) == 2
+    ex = samples[0]
+    assert ex.ref_tokens[0].speaker == "Speaker 0"
+    assert ex.ref_tokens[4].speaker == "Speaker 1"
+    assert ex.pred_tokens[0].speaker == "Speaker 0"
+    assert ex.pred_tokens[3].speaker == "Speaker 1"
+    assert "Speaker 1" in ex.speakers
+    assert "Speaker 0" in ex.speakers
+    assert ex.diffs
+    assert ex.diffs[0].speaker
+
+
+def test_from_bewer_reads_speakers_from_envelope():
+    import copy
+    env = copy.deepcopy(ENVELOPE)
+    env["examples"][0]["ref_speakers"] = ["Speaker 0"] * 5
+    env["examples"][0]["hyp_speakers"] = ["Speaker 0"] * 4
+    samples = from_bewer(env)
+    assert samples[0].ref_tokens[0].speaker == "Speaker 0"
+    assert "Speaker 0" in samples[0].speakers
+
+
+def test_from_bewer_no_speakers_backward_compat():
+    samples = from_bewer(ENVELOPE)
+    assert all(t.speaker == "" for s in samples for t in s.ref_tokens)
+    assert all(t.speaker == "" for s in samples for t in s.pred_tokens)
+    assert all(s.speakers == () for s in samples)
+
+
+def test_samples_to_payload_includes_speaker():
+    from tympany.parser import samples_to_payload
+    ref_ws = [["Speaker 0", "Speaker 0", "Speaker 0", "Speaker 0", "Speaker 1"]]
+    gen_ws = [["Speaker 0", "Speaker 0", "Speaker 0", "Speaker 1"]]
+    samples = from_bewer(ENVELOPE, ref_word_speakers=ref_ws, gen_word_speakers=gen_ws)
+    payload = samples_to_payload(samples)
+    assert "speaker" in payload[0]["ref_tokens"][0]
+    assert "speakers" in payload[0]
+    assert payload[0]["ref_tokens"][0]["speaker"] == "Speaker 0"
+    assert "Speaker 1" in payload[0]["speakers"]
+
+
 def test_from_bewer_diffs_feed_categorizer():
     samples = from_bewer(ENVELOPE)
     edits = [e for d in samples[0].diffs for e in categorize_group(d)]
@@ -42,6 +87,14 @@ def test_from_bewer_diffs_feed_categorizer():
     assert edits[0].classification in {
         "formatting_error", "replacement_candidate", "context_dependent", "misrecognition",
     }
+
+
+def test_categorize_group_preserves_speaker():
+    from tympany.parser import DiffGroup
+    group = DiffGroup(("hello",), ("helloo",), speaker="Speaker 1")
+    edits = categorize_group(group)
+    assert edits
+    assert edits[0].speaker == "Speaker 1"
 
 
 def test_metrics_from_bewer():

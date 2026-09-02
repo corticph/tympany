@@ -62,5 +62,6 @@ def classify_samples(
                 "risk_level": edit.risk_level,
                 "replacement_candidate": edit.is_replacement_candidate,
                 "detail": edit.detail,
+                "speaker": edit.speaker,
             })
     return rows

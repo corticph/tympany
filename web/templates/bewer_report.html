@@ -249,7 +249,7 @@
                     <col style="width: 4ch;">
                     <col style="width: 100%;">
                 </colgroup>
-                <tr><th colspan="3">Example {{ ex.example }}</th></tr>
+                <tr><th colspan="3">Example {{ ex.example }}{% if ex.speakers %} <span style="font-weight:normal; color:#acacac; font-size:12px;">&mdash; {{ ex.speakers|join(", ") }}</span>{% endif %}</th></tr>
                 {% for line in ex.lines %}
                 <tr class="alignment-row">
                     <td class="alignment-table-lines">{{ line.num }}</td>

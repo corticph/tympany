@@ -238,9 +238,16 @@ def canal_view(envelope: dict) -> dict:
             if op_type in ("MATCH", "SUBSTITUTE", "INSERT"):
                 gen_words += 1
                 gen_chars += len(hyp)
+        ref_spk = ex.get("ref_speakers") or []
+        hyp_spk = ex.get("hyp_speakers") or []
+        speakers: list[str] = []
+        for s in ref_spk + hyp_spk:
+            if s and s not in speakers:
+                speakers.append(s)
         examples.append({
             "example": ex.get("example"),
             "lines": _example_lines(ex, fallback_terms),
+            "speakers": speakers,
         })
 
     mtr = metrics.get("mtr")
@@ -259,7 +266,7 @@ def canal_view(envelope: dict) -> dict:
         "summary": summary,
         "examples": examples,
         "show_mtr": bool(mtr),
-        # Show the Medical Term legend whenever a key-term list was supplied.
+        "show_speakers": any(ex.get("speakers") for ex in examples),
         "medical_terms": bool(key_terms),
         "normalization": bool(settings.get("normalization", True)),
     }

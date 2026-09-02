@@ -79,6 +79,7 @@ class Edit:
     pred: tuple[str, ...]
     category: str
     detail: str = ""
+    speaker: str = ""
 
     @property
     def op(self) -> str:
@@ -442,14 +443,15 @@ def classify(
     ref: tuple[str, ...],
     pred: tuple[str, ...],
     medical_terms: frozenset[str] = frozenset(),
+    speaker: str = "",
 ) -> Edit:
     for rule in _effective_rules(medical_terms):
         result = rule(ref, pred)
         if result is not None:
             category, detail = result
             enriched = (detail + _edit_stats(ref, pred)).strip()
-            return Edit(ref=ref, pred=pred, category=category, detail=enriched)
-    return Edit(ref=ref, pred=pred, category="misrecognition", detail=_edit_stats(ref, pred).strip())
+            return Edit(ref=ref, pred=pred, category=category, detail=enriched, speaker=speaker)
+    return Edit(ref=ref, pred=pred, category="misrecognition", detail=_edit_stats(ref, pred).strip(), speaker=speaker)
 
 
 def _split_group(group: DiffGroup) -> list[tuple[tuple[str, ...], tuple[str, ...]]]:
@@ -466,4 +468,5 @@ def _split_group(group: DiffGroup) -> list[tuple[tuple[str, ...], tuple[str, ...
 def categorize_group(
     group: DiffGroup, medical_terms: frozenset[str] = frozenset()
 ) -> list[Edit]:
-    return [classify(r, p, medical_terms) for r, p in _split_group(group)]
+    speaker = group.speaker
+    return [classify(r, p, medical_terms, speaker=speaker) for r, p in _split_group(group)]
