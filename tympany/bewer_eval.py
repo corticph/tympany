@@ -282,6 +282,16 @@ def run_bewer_diarized(
 
     envelope["per_speaker"] = per_speaker
     envelope["settings"]["diarized"] = True
+
+    # Diarization accuracy (Phase 3): matched turns / total turns.
+    from .diarize_errors import diarization_accuracy
+    acc, matched, total = diarization_accuracy(ref_segments, gen_segments)
+    envelope["diarization_accuracy"] = {
+        "accuracy": _pct(acc),
+        "matched": matched,
+        "total": total,
+    } if acc is not None else None
+
     return envelope
 
 

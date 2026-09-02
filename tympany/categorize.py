@@ -3,10 +3,11 @@
 Each diff group is classified into a category, then mapped to:
 
     classification  — one of: formatting_error | replacement_candidate |
-                               context_dependent | misrecognition
-    risk_level      — low | medium | high
-    replacement_candidate — True if the error looks like a fixable STT
-                            replacement/command rule
+                               context_dependent | misrecognition |
+                               diarization_error
+     risk_level      — low | medium | high
+     replacement_candidate — True if the error looks like a fixable STT
+                             replacement/command rule
 
 Category → classification → risk mapping
 -----------------------------------------
@@ -21,6 +22,9 @@ context_dependent  (medium/high risk — flagged for human review):
 
 misrecognition  (medium/high risk — true errors):
     misrecognition, medication_or_device, pure_insertion, pure_deletion
+
+diarization_error  (medium/high risk — speaker assignment errors):
+    speaker_mismatch, speaker_merge, speaker_split, missing_turn, extra_turn
 """
 
 from __future__ import annotations
@@ -66,6 +70,11 @@ _CATEGORY_META: dict[str, tuple[str, str]] = {
     "medication_or_device":   ("misrecognition",          "high"),
     "pure_insertion":         ("misrecognition",          "medium"),
     "pure_deletion":          ("misrecognition",          "medium"),
+    "speaker_mismatch":       ("diarization_error",       "medium"),
+    "speaker_merge":          ("diarization_error",       "medium"),
+    "speaker_split":          ("diarization_error",       "medium"),
+    "missing_turn":           ("diarization_error",       "high"),
+    "extra_turn":             ("diarization_error",       "high"),
 }
 
 

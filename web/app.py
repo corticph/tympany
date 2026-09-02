@@ -222,6 +222,7 @@ def _results_context(
     llm_notice: Optional[str] = None,
 ) -> dict:
     """Template context for results.html, shared by analyze / authored / history."""
+    metrics = history.metrics_view(record)
     return {
         "user": _current_user(request),
         "nav_active": "analyze",
@@ -232,11 +233,12 @@ def _results_context(
         "llm_notice": llm_notice,
         "analysis_id": record.get("id", ""),
         "download_base": history.download_base(record),
-        "metrics": history.metrics_view(record),
+        "metrics": metrics,
         "can_rerun": history.can_rerun(record),
         "is_authored": history.is_authored(record),
         "has_speakers": any(e.get("speaker") for e in record.get("edits", [])),
         "has_per_speaker": bool((record.get("original_metrics") or {}).get("per_speaker")),
+        "has_diarization_accuracy": metrics.get("has_diarization_accuracy"),
         "speakers": sorted(set(
             e.get("speaker", "") for e in record.get("edits", [])
             if e.get("speaker")
@@ -484,8 +486,8 @@ async def _prepare_report(
         ref_word_speakers=ref_ws,
         gen_word_speakers=gen_ws,
         diarized=diarized,
-        ref_segments=ref_segs,
-        gen_segments=gen_segs,
+        ref_segments=[ref_segs] if ref_segs else None,
+        gen_segments=[gen_segs] if gen_segs else None,
         per_speaker=per_speaker == "on" and diarized,
     )
 
@@ -496,7 +498,7 @@ async def _run_bewer(prep: _ReportInputs) -> dict:
     if prep.per_speaker and prep.ref_segments and prep.gen_segments:
         return await asyncio.to_thread(
             bewer_eval.run_bewer_diarized,
-            prep.ref_segments, prep.gen_segments,
+            prep.ref_segments[0], prep.gen_segments[0],
             normalization=prep.normalize_on, medical_terms=terms,
         )
     return await asyncio.to_thread(
@@ -618,7 +620,10 @@ async def reports_new_submit(
     )
     llm_outcome: dict = {}
     edits = history.normalize_edits(
-        await asyncio.to_thread(classify_samples, samples, llm_provider, llm_outcome)
+        await asyncio.to_thread(
+            classify_samples, samples, llm_provider, llm_outcome,
+            ref_segments=prep.ref_segments, gen_segments=prep.gen_segments,
+        )
     )
     llm_used = bool(llm_provider) and not _llm_pass_failed(llm_outcome)
 
