@@ -220,3 +220,17 @@ def test_canal_view_no_per_speaker_when_absent():
     view = report_render.canal_view(_envelope([_op("MATCH", "hi", "hi")]))
     assert view["show_per_speaker"] is False
     assert view["per_speaker_rows"] == []
+
+
+def test_canal_view_diarization_accuracy():
+    env = _envelope([_op("MATCH", "hi", "hi")])
+    env["diarization_accuracy"] = {"accuracy": "80.00%", "matched": 4, "total": 5}
+    view = report_render.canal_view(env)
+    assert view["show_diarization_accuracy"] is True
+    assert view["diarization_accuracy"]["accuracy"] == "80.00%"
+    assert view["diarization_accuracy"]["matched"] == 4
+
+
+def test_canal_view_no_diarization_accuracy_when_absent():
+    view = report_render.canal_view(_envelope([_op("MATCH", "hi", "hi")]))
+    assert view["show_diarization_accuracy"] is False

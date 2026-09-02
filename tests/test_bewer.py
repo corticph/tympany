@@ -126,6 +126,18 @@ def test_metrics_from_bewer_no_per_speaker():
     assert "per_speaker" not in m
 
 
+def test_metrics_from_bewer_includes_diarization_accuracy():
+    env = {
+        "metrics": {"wer": "10.00%", "cer": "5.00%", "mtr": None},
+        "settings": {"normalization": True, "diarized": True},
+        "diarization_accuracy": {"accuracy": "75.00%", "matched": 3, "total": 4},
+    }
+    m = metrics_from_bewer(env)
+    assert m["diarization_accuracy"] == "75.00%"
+    assert m["diarization_matched"] == 3
+    assert m["diarization_total"] == 4
+
+
 def test_reference_corpus_from_bewer_samples():
     samples = from_bewer(ENVELOPE)
     assert reference_corpus(samples) == "the patient has hypertension today\nblood pressure was elevated"
@@ -217,3 +229,23 @@ def test_build_rows_per_speaker():
     spk1 = speaker_rows["Speaker 1"][0]
     assert spk1[0] == "fever"
     assert spk1[1] == "fever"
+
+
+def test_run_bewer_diarized_includes_accuracy():
+    bewer = pytest.importorskip("bewer")
+    from tympany.bewer_eval import run_bewer_diarized
+    from tympany.diarize import SpeakerSegment
+
+    ref_segs = [
+        SpeakerSegment(0, 0, "hello doctor", 0.0, 3.0),
+        SpeakerSegment(1, 0, "I am fine", 3.0, 6.0),
+    ]
+    gen_segs = [
+        SpeakerSegment(0, 0, "hello doctor", 0.0, 3.0),
+        SpeakerSegment(0, 0, "I am fine", 3.0, 6.0),
+    ]
+    env = run_bewer_diarized(ref_segs, gen_segs)
+    assert env["diarization_accuracy"] is not None
+    assert env["diarization_accuracy"]["accuracy"] == "50.00%"
+    assert env["diarization_accuracy"]["matched"] == 1
+    assert env["diarization_accuracy"]["total"] == 2

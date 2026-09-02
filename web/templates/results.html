@@ -392,6 +392,19 @@
   </div>
   {% endif %}
 
+  <!-- Diarization accuracy -->
+  {% if has_diarization_accuracy %}
+  <div id="diarization-accuracy-card" class="metric-block" style="margin-bottom:20px; max-width:400px;">
+    <div class="metric-title">Diarization Accuracy</div>
+    <div class="metric-pair">
+      <div class="metric-cell">
+        <span class="metric-val">{{ metrics.diarization_accuracy or "—" }}</span>
+        <span class="metric-cap">{{ metrics.diarization_matched }} / {{ metrics.diarization_total }} turns matched</span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Stat boxes -->
   <div class="summary-grid">
     <div class="stat-box">

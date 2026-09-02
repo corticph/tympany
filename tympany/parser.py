@@ -187,6 +187,11 @@ def metrics_from_bewer(envelope: dict) -> dict:
             }
             for label, sp in per_speaker.items()
         }
+    diar_acc = envelope.get("diarization_accuracy")
+    if diar_acc:
+        result["diarization_accuracy"] = diar_acc.get("accuracy")
+        result["diarization_matched"] = diar_acc.get("matched")
+        result["diarization_total"] = diar_acc.get("total")
     return result
 
 

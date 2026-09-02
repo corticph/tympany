@@ -222,6 +222,7 @@ def _results_context(
     llm_notice: Optional[str] = None,
 ) -> dict:
     """Template context for results.html, shared by analyze / authored / history."""
+    metrics = history.metrics_view(record)
     return {
         "user": _current_user(request),
         "nav_active": "analyze",
@@ -232,11 +233,12 @@ def _results_context(
         "llm_notice": llm_notice,
         "analysis_id": record.get("id", ""),
         "download_base": history.download_base(record),
-        "metrics": history.metrics_view(record),
+        "metrics": metrics,
         "can_rerun": history.can_rerun(record),
         "is_authored": history.is_authored(record),
         "has_speakers": any(e.get("speaker") for e in record.get("edits", [])),
         "has_per_speaker": bool((record.get("original_metrics") or {}).get("per_speaker")),
+        "has_diarization_accuracy": metrics.get("has_diarization_accuracy"),
         "speakers": sorted(set(
             e.get("speaker", "") for e in record.get("edits", [])
             if e.get("speaker")

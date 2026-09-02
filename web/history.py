@@ -675,6 +675,10 @@ def metrics_view(record: dict) -> dict:
         "has_rerun": bool(updated.get("wer") or updated.get("cer")),
         "per_speaker": per_speaker,
         "has_per_speaker": bool(per_speaker),
+        "diarization_accuracy": original.get("diarization_accuracy"),
+        "diarization_matched": original.get("diarization_matched"),
+        "diarization_total": original.get("diarization_total"),
+        "has_diarization_accuracy": original.get("diarization_accuracy") is not None,
     }
 
 

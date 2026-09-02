@@ -13,7 +13,7 @@
       "id": "gen-0002",
       "transcript": "I have had a ever and a cough for 3 days.",
       "final": true,
-      "speakerId": 1,
+      "speakerId": 0,
       "participant": { "channel": 0 },
       "time": { "start": 3.50, "end": 7.80 }
     },

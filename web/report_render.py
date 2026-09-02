@@ -336,6 +336,8 @@ def canal_view(envelope: dict) -> dict:
         "show_speakers": any(ex.get("speakers") for ex in examples),
         "show_per_speaker": bool(per_speaker_rows),
         "per_speaker_rows": per_speaker_rows,
+        "diarization_accuracy": envelope.get("diarization_accuracy"),
+        "show_diarization_accuracy": envelope.get("diarization_accuracy") is not None,
         "medical_terms": bool(key_terms),
         "normalization": bool(settings.get("normalization", True)),
     }

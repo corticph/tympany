@@ -213,6 +213,7 @@
                 <tr class="value-row"><td>Word Error Rate</td><td>{{ summary.wer }}</td></tr>
                 <tr class="value-row"><td>Character Error Rate</td><td>{{ summary.cer }}</td></tr>
                 {% if show_mtr %}<tr class="value-row"><td>Medical Term Recall</td><td>{{ summary.mtr }}</td></tr>{% endif %}
+                {% if show_diarization_accuracy %}<tr class="value-row"><td>Diarization Accuracy</td><td>{{ diarization_accuracy.accuracy }} ({{ diarization_accuracy.matched }}/{{ diarization_accuracy.total }} turns)</td></tr>{% endif %}
             </table>
         </div>
 

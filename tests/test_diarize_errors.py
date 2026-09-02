@@ -109,3 +109,53 @@ def test_diarization_error_carries_speaker():
     errors = align_segments(ref, gen)
     assert errors
     assert errors[0].speaker != ""
+
+
+# ---------------------------------------------------------------------------
+# Diarization accuracy
+# ---------------------------------------------------------------------------
+
+def test_diarization_accuracy_perfect():
+    from tympany.diarize_errors import diarization_accuracy
+    ref = [
+        _seg(0, 0, "hello doctor", 0.0, 3.0),
+        _seg(1, 0, "I am fine", 3.0, 6.0),
+    ]
+    gen = [
+        _seg(0, 0, "hello doctor", 0.0, 3.0),
+        _seg(1, 0, "I am fine", 3.0, 6.0),
+    ]
+    acc, matched, total = diarization_accuracy(ref, gen)
+    assert acc == 1.0
+    assert matched == 2
+    assert total == 2
+
+
+def test_diarization_accuracy_with_mismatch():
+    from tympany.diarize_errors import diarization_accuracy
+    ref = [
+        _seg(0, 0, "hello doctor", 0.0, 3.0),
+        _seg(1, 0, "I am fine", 3.0, 6.0),
+    ]
+    gen = [
+        _seg(0, 0, "hello doctor", 0.0, 3.0),
+        _seg(0, 0, "I am fine", 3.0, 6.0),
+    ]
+    acc, matched, total = diarization_accuracy(ref, gen)
+    assert acc == 0.5
+    assert matched == 1
+    assert total == 2
+
+
+def test_diarization_accuracy_no_diarization():
+    from tympany.diarize_errors import diarization_accuracy
+    ref = [_seg(-1, 0, "hi", 0, 1)]
+    gen = [_seg(-1, 0, "hi", 0, 1)]
+    acc, matched, total = diarization_accuracy(ref, gen)
+    assert acc is None
+
+
+def test_diarization_accuracy_empty():
+    from tympany.diarize_errors import diarization_accuracy
+    acc, matched, total = diarization_accuracy([], [])
+    assert acc is None
