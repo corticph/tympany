@@ -3,10 +3,11 @@
 Each diff group is classified into a category, then mapped to:
 
     classification  — one of: formatting_error | replacement_candidate |
-                               context_dependent | misrecognition
-    risk_level      — low | medium | high
-    replacement_candidate — True if the error looks like a fixable STT
-                            replacement/command rule
+                               context_dependent | misrecognition |
+                               diarization_error
+     risk_level      — low | medium | high
+     replacement_candidate — True if the error looks like a fixable STT
+                             replacement/command rule
 
 Category → classification → risk mapping
 -----------------------------------------
@@ -21,6 +22,9 @@ context_dependent  (medium/high risk — flagged for human review):
 
 misrecognition  (medium/high risk — true errors):
     misrecognition, medication_or_device, pure_insertion, pure_deletion
+
+diarization_error  (medium/high risk — speaker assignment errors):
+    speaker_mismatch, speaker_merge, speaker_split, missing_turn, extra_turn
 """
 
 from __future__ import annotations
@@ -66,6 +70,11 @@ _CATEGORY_META: dict[str, tuple[str, str]] = {
     "medication_or_device":   ("misrecognition",          "high"),
     "pure_insertion":         ("misrecognition",          "medium"),
     "pure_deletion":          ("misrecognition",          "medium"),
+    "speaker_mismatch":       ("diarization_error",       "medium"),
+    "speaker_merge":          ("diarization_error",       "medium"),
+    "speaker_split":          ("diarization_error",       "medium"),
+    "missing_turn":           ("diarization_error",       "high"),
+    "extra_turn":             ("diarization_error",       "high"),
 }
 
 
@@ -79,6 +88,7 @@ class Edit:
     pred: tuple[str, ...]
     category: str
     detail: str = ""
+    speaker: str = ""
 
     @property
     def op(self) -> str:
@@ -442,14 +452,15 @@ def classify(
     ref: tuple[str, ...],
     pred: tuple[str, ...],
     medical_terms: frozenset[str] = frozenset(),
+    speaker: str = "",
 ) -> Edit:
     for rule in _effective_rules(medical_terms):
         result = rule(ref, pred)
         if result is not None:
             category, detail = result
             enriched = (detail + _edit_stats(ref, pred)).strip()
-            return Edit(ref=ref, pred=pred, category=category, detail=enriched)
-    return Edit(ref=ref, pred=pred, category="misrecognition", detail=_edit_stats(ref, pred).strip())
+            return Edit(ref=ref, pred=pred, category=category, detail=enriched, speaker=speaker)
+    return Edit(ref=ref, pred=pred, category="misrecognition", detail=_edit_stats(ref, pred).strip(), speaker=speaker)
 
 
 def _split_group(group: DiffGroup) -> list[tuple[tuple[str, ...], tuple[str, ...]]]:
@@ -466,4 +477,5 @@ def _split_group(group: DiffGroup) -> list[tuple[tuple[str, ...], tuple[str, ...
 def categorize_group(
     group: DiffGroup, medical_terms: frozenset[str] = frozenset()
 ) -> list[Edit]:
-    return [classify(r, p, medical_terms) for r, p in _split_group(group)]
+    speaker = group.speaker
+    return [classify(r, p, medical_terms, speaker=speaker) for r, p in _split_group(group)]

@@ -81,6 +81,7 @@
   .cls-select.cls-replacement_candidate { color: hsl(var(--variant-info-text)); }
   .cls-select.cls-context_dependent     { color: hsl(var(--variant-warning-text)); }
   .cls-select.cls-misrecognition        { color: hsl(var(--variant-error-text)); }
+  .cls-select.cls-diarization_error     { color: hsl(var(--primary)); }
 
   /* Editable description input */
   .desc-input {
@@ -360,6 +361,50 @@
     </div>
   </div>
 
+  <!-- Per-speaker metrics -->
+  {% if has_per_speaker %}
+  <div id="per-speaker-card" style="margin-bottom:20px;">
+    <div class="metric-title" style="margin-bottom:10px;">Per-speaker evaluation</div>
+    <table class="data-table breakdown-table" style="max-width:700px;">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Speaker</th>
+          <th>WER (Original)</th>
+          <th>WER (Updated)</th>
+          <th>CER (Original)</th>
+          <th>CER (Updated)</th>
+          <th>Ref words</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for spk, m in metrics.per_speaker.items() %}
+        <tr>
+          <td style="text-align:left; font-weight:600;">{{ spk }}</td>
+          <td>{{ m.original_wer or "—" }}</td>
+          <td class="spk-upd-wer" data-speaker="{{ spk }}">{{ m.updated_wer or "—" }}</td>
+          <td>{{ m.original_cer or "—" }}</td>
+          <td class="spk-upd-cer" data-speaker="{{ spk }}">{{ m.updated_cer or "—" }}</td>
+          <td>{{ m.ref_words }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Diarization accuracy -->
+  {% if has_diarization_accuracy %}
+  <div id="diarization-accuracy-card" class="metric-block" style="margin-bottom:20px; max-width:400px;">
+    <div class="metric-title">Diarization Accuracy</div>
+    <div class="metric-pair">
+      <div class="metric-cell">
+        <span class="metric-val">{{ metrics.diarization_accuracy or "—" }}</span>
+        <span class="metric-cap">{{ metrics.diarization_matched }} / {{ metrics.diarization_total }} turns matched</span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Stat boxes -->
   <div class="summary-grid">
     <div class="stat-box">
@@ -390,6 +435,7 @@
             <th class="cls-context_dependent">Context-dep.</th>
             <th class="cls-formatting_error">Formatting</th>
             <th class="cls-replacement_candidate">Replacement</th>
+            <th class="cls-diarization_error">Diariz.</th>
           </tr>
         </thead>
         <tbody>
@@ -399,6 +445,7 @@
             <td id="bt-total-context_dependent">—</td>
             <td id="bt-total-formatting_error">—</td>
             <td id="bt-total-replacement_candidate">—</td>
+            <td id="bt-total-diarization_error">—</td>
           </tr>
           <tr>
             <td style="font-weight:600; color:hsl(var(--muted-foreground)); white-space:nowrap;">Excluded</td>
@@ -406,6 +453,7 @@
             <td id="bt-excl-context_dependent" style="color:hsl(var(--muted-foreground));">—</td>
             <td id="bt-excl-formatting_error" style="color:hsl(var(--muted-foreground));">—</td>
             <td id="bt-excl-replacement_candidate" style="color:hsl(var(--muted-foreground));">—</td>
+            <td id="bt-excl-diarization_error" style="color:hsl(var(--muted-foreground));">—</td>
           </tr>
         </tbody>
       </table>
@@ -529,6 +577,15 @@
           <div class="sample-dropdown-list" id="sample-dropdown-list"></div>
         </div>
       </div>
+      {% if has_speakers %}
+      <label for="filter-speaker">Speaker</label>
+      <select id="filter-speaker" onchange="applyFilters()">
+        <option value="">All</option>
+        {% for spk in speakers %}
+        <option value="{{ spk }}">{{ spk }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
       <label>Classification</label>
       <select id="filter-cls" onchange="applyFilters()">
         <option value="">All</option>
@@ -536,6 +593,7 @@
         <option value="replacement_candidate">Replacement candidate</option>
         <option value="context_dependent">Context-dependent</option>
         <option value="misrecognition">Misrecognition</option>
+        <option value="diarization_error">Diarization error</option>
       </select>
       <label>Risk</label>
       <select id="filter-risk" onchange="applyFilters()">
@@ -600,9 +658,15 @@
             data-rc="{{ e.replacement_candidate }}"
             data-excluded="{{ 'true' if e.excluded else 'false' }}"
             data-flagged="{{ 'true' if e.flagged else 'false' }}"
+            data-speaker="{{ e.speaker or '' }}"
           >
             <td class="mono" style="color:hsl(var(--muted-foreground));">{{ loop.index }}</td>
-            <td style="color:hsl(var(--muted-foreground)); font-size:12px; font-weight:600; white-space:nowrap;">Ex.&nbsp;{{ e.example }}</td>
+            <td style="color:hsl(var(--muted-foreground)); font-size:12px; font-weight:600; white-space:nowrap;">
+              Ex.&nbsp;{{ e.example }}
+              {% if has_speakers and e.speaker %}
+              <div style="font-size:10px; font-weight:400; color:hsl(var(--muted-foreground)); opacity:0.7; margin-top:2px;">{{ e.speaker }}</div>
+              {% endif %}
+            </td>
             <td class="mono" style="color:hsl(var(--muted-foreground));">{{ e.ref }}</td>
             <td class="mono" style="color:hsl(var(--foreground)); font-weight:500;">{{ e.gen }}</td>
             <td>
@@ -615,6 +679,7 @@
                 <option value="replacement_candidate" {% if e.classification == 'replacement_candidate' %}selected{% endif %}>Replacement Candidate</option>
                 <option value="context_dependent"     {% if e.classification == 'context_dependent'     %}selected{% endif %}>Context Dependent</option>
                 <option value="misrecognition"        {% if e.classification == 'misrecognition'        %}selected{% endif %}>Misrecognition</option>
+                <option value="diarization_error"     {% if e.classification == 'diarization_error'     %}selected{% endif %}>Diarization Error</option>
               </select>
             </td>
             <td>
@@ -668,6 +733,7 @@ const CLS_RISK = {
   replacement_candidate: 'low',
   context_dependent:     'medium',
   misrecognition:        'high',
+  diarization_error:     'medium',
 };
 
 const ANALYSIS_ID = document.querySelector('#edits-table')?.dataset.analysisId || '';
@@ -731,6 +797,7 @@ function collectRows() {
   return [...document.querySelectorAll('#edits-table tbody tr')].map(row => ({
     file:                  row.dataset.file    || '',
     example:               row.dataset.example || '',
+    speaker:               row.dataset.speaker || '',
     ref:                   row.dataset.ref     || '',
     gen:                   row.dataset.gen     || '',
     op:                    row.dataset.op      || '',
@@ -786,7 +853,7 @@ function updateStats() {
   document.getElementById('stat-total').textContent    = active.length;
 
   // By classification table
-  ['misrecognition','context_dependent','formatting_error','replacement_candidate'].forEach(cls => {
+  ['misrecognition','context_dependent','formatting_error','replacement_candidate','diarization_error'].forEach(cls => {
     const tot = rows.filter(r => r.dataset.cls === cls).length;
     const exc = excluded.filter(r => r.dataset.cls === cls).length;
     document.getElementById('bt-total-' + cls).textContent = tot;
@@ -877,6 +944,7 @@ function applyFilters() {
   const cls          = document.getElementById('filter-cls').value;
   const risk         = document.getElementById('filter-risk').value;
   const excludedMode = document.getElementById('filter-excluded').value;
+  const speaker      = document.getElementById('filter-speaker')?.value || '';
   const rows         = document.querySelectorAll('#edits-table tbody tr');
   let visible = 0;
   rows.forEach(row => {
@@ -889,6 +957,7 @@ function applyFilters() {
       (activeSamples.size === 0 || activeSamples.has(row.dataset.example)) &&
       (!cls || row.dataset.cls === cls) &&
       (!risk || row.dataset.risk === risk) &&
+      (!speaker || row.dataset.speaker === speaker) &&
       matchesExcluded;
     row.classList.toggle('hidden', !show);
     if (show) visible++;
@@ -899,7 +968,7 @@ function applyFilters() {
 // ── CSV download (client-side, reflects all edits) ───────────────────────────
 function downloadCSV() {
   const rows = [...document.querySelectorAll('#edits-table tbody tr')];
-  const header = ['file','example','ref','gen','op','classification','risk_level','error_description','excluded','flagged','detail'];
+  const header = ['file','example','speaker','ref','gen','op','classification','risk_level','error_description','excluded','flagged','detail'];
   const lines = [header.join(',')];
 
   rows.forEach(row => {
@@ -912,6 +981,7 @@ function downloadCSV() {
     const cells = [
       csvEsc(row.dataset.file    || ''),
       csvEsc(row.dataset.example || ''),
+      csvEsc(row.dataset.speaker || ''),
       csvEsc(row.dataset.ref     || ''),
       csvEsc(row.dataset.gen     || ''),
       csvEsc(row.dataset.op      || ''),
@@ -999,6 +1069,15 @@ function applyMetrics(m) {
   if (link && m.has_rerun) link.style.visibility = 'visible';
   const viewLink = document.getElementById('view-rerun-link');
   if (viewLink && m.has_rerun) viewLink.style.display = '';
+  // Per-speaker updated metrics
+  if (m.per_speaker) {
+    for (const [spk, vals] of Object.entries(m.per_speaker)) {
+      const werCell = document.querySelector(`.spk-upd-wer[data-speaker="${spk}"]`);
+      const cerCell = document.querySelector(`.spk-upd-cer[data-speaker="${spk}"]`);
+      if (werCell && vals.updated_wer) werCell.textContent = vals.updated_wer;
+      if (cerCell && vals.updated_cer) cerCell.textContent = vals.updated_cer;
+    }
+  }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

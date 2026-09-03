@@ -31,6 +31,7 @@ _CLASSIFICATIONS = [
     "context_dependent",
     "formatting_error",
     "replacement_candidate",
+    "diarization_error",
 ]
 _RISK_LEVELS = ["high", "medium", "low"]
 
@@ -98,6 +99,7 @@ def normalize_edits(rows: list[dict]) -> list[dict]:
         out.append({
             "file": row.get("file", ""),
             "example": row.get("example", ""),
+            "speaker": row.get("speaker", ""),
             "ref": row.get("ref", ""),
             "gen": row.get("gen", ""),
             "op": row.get("op", ""),
@@ -257,7 +259,7 @@ def delete_analysis(email: str, analysis_id: str) -> bool:
 # Column order matches the client-side exporter in results.html so server and
 # browser downloads produce byte-identical CSVs from the same edit state.
 CSV_HEADER = [
-    "file", "example", "ref", "gen", "op",
+    "file", "example", "speaker", "ref", "gen", "op",
     "classification", "risk_level", "error_description",
     "excluded", "flagged", "detail",
 ]
@@ -273,6 +275,7 @@ def to_csv(record: dict) -> str:
         writer.writerow([
             e.get("file", ""),
             e.get("example", ""),
+            e.get("speaker", ""),
             e.get("ref", ""),
             e.get("gen", ""),
             e.get("op", ""),
@@ -293,7 +296,7 @@ def to_csv(record: dict) -> str:
 # Like CSV_HEADER but adds the full example reference / generated text so a
 # reviewer has the context surrounding each flagged error, not just the diff.
 FLAGS_CSV_HEADER = [
-    "file", "example", "ref", "gen", "op",
+    "file", "example", "speaker", "ref", "gen", "op",
     "classification", "risk_level", "error_description", "detail",
     "ref_context", "gen_context",
 ]
@@ -326,6 +329,7 @@ def flags_to_csv(record: dict) -> str:
         writer.writerow([
             e.get("file", ""),
             e.get("example", ""),
+            e.get("speaker", ""),
             e.get("ref", ""),
             e.get("gen", ""),
             e.get("op", ""),
@@ -610,6 +614,7 @@ def set_bewer_rerun(
             "wer": updated_metrics.get("wer"),
             "cer": updated_metrics.get("cer"),
             "mtr": updated_metrics.get("mtr"),
+            "per_speaker": updated_metrics.get("per_speaker"),
         },
         "examples": updated_metrics.get("examples"),
         "run_at": _now_iso(),
@@ -644,6 +649,21 @@ def metrics_view(record: dict) -> dict:
     orig_mtr, upd_mtr = _pct(original.get("mtr")), _pct(updated.get("mtr"))
     mtr_improved = orig_mtr is not None and upd_mtr is not None and upd_mtr > orig_mtr
 
+    # Per-speaker metrics (Phase 2): merge original + updated into one view.
+    orig_ps = original.get("per_speaker") or {}
+    upd_ps = updated.get("per_speaker") or {}
+    per_speaker: dict[str, dict] = {}
+    for spk in list(orig_ps.keys()) + [s for s in upd_ps if s not in orig_ps]:
+        o = orig_ps.get(spk, {})
+        u = upd_ps.get(spk, {})
+        per_speaker[spk] = {
+            "original_wer": o.get("wer"),
+            "original_cer": o.get("cer"),
+            "updated_wer": u.get("wer"),
+            "updated_cer": u.get("cer"),
+            "ref_words": o.get("ref_words", 0),
+        }
+
     return {
         "original_wer": original.get("wer"),
         "original_cer": original.get("cer"),
@@ -653,6 +673,12 @@ def metrics_view(record: dict) -> dict:
         "updated_mtr": updated.get("mtr"),
         "mtr_improved": mtr_improved,
         "has_rerun": bool(updated.get("wer") or updated.get("cer")),
+        "per_speaker": per_speaker,
+        "has_per_speaker": bool(per_speaker),
+        "diarization_accuracy": original.get("diarization_accuracy"),
+        "diarization_matched": original.get("diarization_matched"),
+        "diarization_total": original.get("diarization_total"),
+        "has_diarization_accuracy": original.get("diarization_accuracy") is not None,
     }
 
 

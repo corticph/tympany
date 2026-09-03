@@ -26,10 +26,47 @@ def _sample_medical_terms(sample) -> frozenset[str]:
     return detect_entities(text)
 
 
+def _diarization_error_rows(
+    sample, ref_segments, gen_segments,
+) -> list[dict]:
+    """Detect diarization errors for a sample and return edit-row dicts.
+
+    Only runs when both ref and gen segments are available (diarized input).
+    The returned rows carry the same shape as word-level edit rows so they
+    flow through ``normalize_edits`` and the results table unchanged.
+    """
+    if not ref_segments or not gen_segments:
+        return []
+
+    from .diarize_errors import align_segments
+    from .categorize import _CATEGORY_META
+
+    errors = align_segments(ref_segments, gen_segments)
+    rows: list[dict] = []
+    for err in errors:
+        classification, risk = _CATEGORY_META.get(err.category, ("diarization_error", "medium"))
+        rows.append({
+            "file": sample.file_stem,
+            "example": sample.example_num,
+            "ref": err.ref_text,
+            "gen": err.gen_text,
+            "op": "sub",
+            "category": err.category,
+            "classification": classification,
+            "risk_level": risk,
+            "replacement_candidate": False,
+            "detail": err.detail,
+            "speaker": err.speaker,
+        })
+    return rows
+
+
 def classify_samples(
     samples,
     llm_provider: Optional[str] = None,
     llm_outcome: Optional[MutableMapping] = None,
+    ref_segments: Optional[list] = None,
+    gen_segments: Optional[list] = None,
 ) -> list[dict]:
     """Categorize every diff group across ``samples`` into edit-row dicts.
 
@@ -38,10 +75,14 @@ def classify_samples(
     When the LLM pass runs and ``llm_outcome`` is provided, it is populated with
     the pass result (see ``tympany.llm.classify_with_llm``) so callers can tell
     a real LLM classification apart from a silent rule-based fallback.
+
+    When ``ref_segments`` and ``gen_segments`` are provided (diarized input),
+    diarization errors (speaker mismatch, merged/split turns, missing/extra
+    turns) are detected and appended as additional edit rows.
     """
     provider = detect_provider(llm_provider) if llm_provider else None
     rows: list[dict] = []
-    for sample in samples:
+    for idx, sample in enumerate(samples):
         medical_terms = _sample_medical_terms(sample)
         edits = [
             edit
@@ -62,5 +103,10 @@ def classify_samples(
                 "risk_level": edit.risk_level,
                 "replacement_candidate": edit.is_replacement_candidate,
                 "detail": edit.detail,
+                "speaker": edit.speaker,
             })
+
+        if ref_segments and gen_segments and idx < len(ref_segments) and idx < len(gen_segments):
+            rows.extend(_diarization_error_rows(sample, ref_segments[idx], gen_segments[idx]))
+
     return rows

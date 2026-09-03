@@ -120,3 +120,117 @@ def test_adjacent_terms_get_separate_boxes():
     ops = [_op("MATCH", "nausea", "nausea"), _op("MATCH", "dizziness", "dizziness")]
     view = report_render.canal_view(_envelope(ops, key_terms=["nausea", "dizziness"]))
     assert str(view["examples"][0]["lines"][0]["ref"]).count("keyword-box") == 2
+
+
+# ---------------------------------------------------------------------------
+# Per-speaker splitting (Phase 2)
+# ---------------------------------------------------------------------------
+
+def _envelope_with_speakers(ops, ref_spk, hyp_spk, *, key_terms=None):
+    env = _envelope(ops, key_terms=key_terms)
+    env["examples"][0]["ref_speakers"] = ref_spk
+    env["examples"][0]["hyp_speakers"] = hyp_spk
+    return env
+
+
+def test_split_ops_by_speaker_two_speakers():
+    ops = [
+        _op("MATCH", "hello", "hello"),
+        _op("MATCH", "doctor", "doctor"),
+        _op("MATCH", "I", "I"),
+        _op("MATCH", "see", "see"),
+    ]
+    ref_spk = ["Speaker 0", "Speaker 0", "Speaker 1", "Speaker 1"]
+    hyp_spk = ["Speaker 0", "Speaker 0", "Speaker 1", "Speaker 1"]
+    ex = {"ops": ops, "ref_speakers": ref_spk, "hyp_speakers": hyp_spk}
+    groups = report_render._split_ops_by_speaker(ex)
+    assert len(groups) == 2
+    assert groups[0][0] == "Speaker 0"
+    assert len(groups[0][1]) == 2
+    assert groups[1][0] == "Speaker 1"
+    assert len(groups[1][1]) == 2
+
+
+def test_canal_view_splits_examples_by_speaker():
+    ops = [
+        _op("MATCH", "hello", "hello"),
+        _op("MATCH", "doctor", "doctor"),
+        _op("MATCH", "I", "I"),
+        _op("MATCH", "see", "see"),
+    ]
+    ref_spk = ["Speaker 0", "Speaker 0", "Speaker 1", "Speaker 1"]
+    hyp_spk = ["Speaker 0", "Speaker 0", "Speaker 1", "Speaker 1"]
+    view = report_render.canal_view(_envelope_with_speakers(ops, ref_spk, hyp_spk))
+    assert len(view["examples"]) == 2
+    assert view["examples"][0]["speaker"] == "Speaker 0"
+    assert view["examples"][1]["speaker"] == "Speaker 1"
+    assert len(view["examples"][0]["lines"]) > 0
+    assert len(view["examples"][1]["lines"]) > 0
+
+
+def test_canal_view_no_speakers_stays_single_example():
+    ops = [_op("MATCH", "hello", "hello"), _op("MATCH", "doctor", "doctor")]
+    view = report_render.canal_view(_envelope(ops))
+    assert len(view["examples"]) == 1
+    assert view["examples"][0]["speaker"] == ""
+
+
+def test_canal_view_speaker_split_preserves_word_counts():
+    """Splitting by speaker doesn't change the summary corpus counts."""
+    ops = [
+        _op("MATCH", "hello", "hello"),
+        _op("MATCH", "doctor", "doctor"),
+        _op("MATCH", "I", "I"),
+        _op("MATCH", "see", "see"),
+    ]
+    ref_spk = ["Speaker 0", "Speaker 0", "Speaker 1", "Speaker 1"]
+    hyp_spk = ["Speaker 0", "Speaker 0", "Speaker 1", "Speaker 1"]
+    view = report_render.canal_view(_envelope_with_speakers(ops, ref_spk, hyp_spk))
+    assert view["summary"]["ref_words"] == "4"
+    assert view["summary"]["gen_words"] == "4"
+
+
+def test_canal_view_per_speaker_metrics():
+    env = _envelope([_op("MATCH", "hi", "hi")])
+    env["per_speaker"] = {
+        "Speaker 0": {
+            "metrics": {"wer": "0.00%", "cer": "0.00%", "mtr": None},
+            "ref_words": 2,
+            "gen_words": 2,
+        },
+        "Speaker 1": {
+            "metrics": {"wer": "50.00%", "cer": "25.00%", "mtr": None},
+            "ref_words": 4,
+            "gen_words": 4,
+        },
+    }
+    view = report_render.canal_view(env)
+    assert view["show_per_speaker"] is True
+    rows = view["per_speaker_rows"]
+    assert len(rows) == 2
+    assert rows[0]["label"] == "Speaker 0"
+    assert rows[0]["wer"] == "0.00%"
+    assert rows[0]["ref_words"] == "2"
+    assert rows[1]["label"] == "Speaker 1"
+    assert rows[1]["wer"] == "50.00%"
+    assert rows[1]["cer"] == "25.00%"
+
+
+def test_canal_view_no_per_speaker_when_absent():
+    view = report_render.canal_view(_envelope([_op("MATCH", "hi", "hi")]))
+    assert view["show_per_speaker"] is False
+    assert view["per_speaker_rows"] == []
+
+
+def test_canal_view_diarization_accuracy():
+    env = _envelope([_op("MATCH", "hi", "hi")])
+    env["diarization_accuracy"] = {"accuracy": "80.00%", "matched": 4, "total": 5}
+    view = report_render.canal_view(env)
+    assert view["show_diarization_accuracy"] is True
+    assert view["diarization_accuracy"]["accuracy"] == "80.00%"
+    assert view["diarization_accuracy"]["matched"] == 4
+
+
+def test_canal_view_no_diarization_accuracy_when_absent():
+    view = report_render.canal_view(_envelope([_op("MATCH", "hi", "hi")]))
+    assert view["show_diarization_accuracy"] is False
