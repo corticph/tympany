@@ -1,0 +1,7 @@
+[
+  { "transcript": "Good morning, what brings you in today?", "speakerId": 0, "channel": 0 },
+  { "transcript": "I have had a fever and a cough for three days.", "speakerId": 1, "channel": 0 },
+  { "transcript": "I will prescribe you some antibiotics. Take them twice a day.", "speakerId": 0, "channel": 0 },
+  { "transcript": "Thank you, doctor. When should I come back?", "speakerId": 1, "channel": 0 },
+  { "transcript": "In two weeks if the symptoms persist.", "speakerId": 0, "channel": 0 }
+]
