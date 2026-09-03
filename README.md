@@ -253,10 +253,11 @@ On the **Create** page, select **Import Corti transcript** to paste or upload a 
 
 - **WebSocket streams** — segments arrive as `{ transcript, speakerId, participant: { channel }, time: { start, end } }` with times in seconds. Segments are sorted by start time.
 - **REST `/transcripts`** — segments arrive as `{ text, speakerId, channel, start, end }` with times in milliseconds.
+- **Minimal format** — a bare JSON array of `{ transcript, speakerId, channel }` objects (no `time`, `participant`, or `id` fields). Useful for reference transcripts that only need speaker labels, not timing.
 
 `speakerId` values of `0`–`3` indicate diarized speakers; `-1` means diarization is off (the segment is labeled by channel only). Channel is audio routing and is independent from speaker assignment.
 
-The parser (`tympany/diarize.py`) flattens segment texts into a single string for bewer evaluation and builds a per-word speaker label list so that every token, diff group, and error row on the results page is tagged with its speaker.
+The parser (`tympany/diarize.py`) splits the transcript into **turns** — maximal runs of consecutive same-speaker segments. Each turn becomes a separate bewer example, so the report and analysis views show each speaker turn as its own example (e.g. "Example 1 — Speaker 0", "Example 2 — Speaker 1"). Turns are paired by position between reference and generated; if one side has more turns, the missing side is empty (full deletion or insertion). Every token, diff group, and error row on the results page is tagged with its speaker.
 
 ### Per-speaker evaluation
 
