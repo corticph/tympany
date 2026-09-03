@@ -231,28 +231,38 @@ def run_bewer_diarized(
     normalization: bool = True,
     medical_terms: Optional[Sequence[str]] = None,
 ) -> dict:
-    """Evaluate diarized transcripts both as a flat corpus and per speaker.
+    """Evaluate diarized transcripts per turn and per speaker.
 
-    Returns the same JSON envelope as ``run_bewer`` (flat evaluation with
-    speaker-tagged tokens), augmented with a ``per_speaker`` dict mapping
-    each speaker label to its own metrics + word counts. The flat envelope
-    drives the edit table exactly as before; the per-speaker block is an
-    overlay for the results-page metrics display.
+    Splits each side into turns (consecutive same-speaker segments), pairs
+    them by position, and evaluates each pair as a separate bewer example.
+    Returns the same JSON envelope as ``run_bewer`` (with speaker-tagged
+    tokens), augmented with a ``per_speaker`` dict mapping each speaker label
+    to its own metrics + word counts and a ``diarization_accuracy`` block.
     """
     from .diarize import (
-        build_word_speakers,
+        Turn,
         distinct_speakers,
         flatten_segments,
         is_diarized,
+        split_into_turns,
     )
 
-    ref_text = flatten_segments(ref_segments)
-    gen_text = flatten_segments(gen_segments)
-    ref_ws = [build_word_speakers(ref_segments)]
-    gen_ws = [build_word_speakers(gen_segments)]
+    ref_turns = split_into_turns(ref_segments)
+    gen_turns = split_into_turns(gen_segments)
+    n = max(len(ref_turns), len(gen_turns))
+
+    rows: list[tuple[str, str]] = []
+    ref_ws: list[list[str]] = []
+    gen_ws: list[list[str]] = []
+    for i in range(n):
+        rt = ref_turns[i] if i < len(ref_turns) else Turn("", "")
+        gt = gen_turns[i] if i < len(gen_turns) else Turn("", "")
+        rows.append((rt.text, gt.text))
+        ref_ws.append([rt.speaker] * len(rt.text.split()) if rt.text else [])
+        gen_ws.append([gt.speaker] * len(gt.text.split()) if gt.text else [])
 
     envelope = run_bewer(
-        [(ref_text, gen_text)],
+        rows,
         normalization=normalization,
         medical_terms=medical_terms,
         ref_word_speakers=ref_ws,

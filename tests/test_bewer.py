@@ -249,3 +249,59 @@ def test_run_bewer_diarized_includes_accuracy():
     assert env["diarization_accuracy"]["accuracy"] == "50.00%"
     assert env["diarization_accuracy"]["matched"] == 1
     assert env["diarization_accuracy"]["total"] == 2
+
+
+def test_run_bewer_diarized_produces_per_turn_examples():
+    bewer = pytest.importorskip("bewer")
+    from tympany.bewer_eval import run_bewer_diarized
+    from tympany.diarize import SpeakerSegment
+
+    ref_segs = [
+        SpeakerSegment(0, 0, "Hello what brings you in today", 0.4, 3.1),
+        SpeakerSegment(1, 0, "I have had a fever", 3.4, 7.2),
+        SpeakerSegment(0, 0, "I will prescribe antibiotics", 7.5, 10.8),
+    ]
+    gen_segs = [
+        SpeakerSegment(0, 0, "Hello what brings you in today", 0.4, 3.1),
+        SpeakerSegment(1, 0, "I have had a ever", 3.4, 7.2),
+        SpeakerSegment(0, 0, "I will prescribe antibiotic", 7.5, 10.8),
+    ]
+    env = run_bewer_diarized(ref_segs, gen_segs)
+
+    # Three turns (alternating speakers) → three examples
+    assert len(env["examples"]) == 3
+    assert env["examples"][0]["example"] == 1
+    assert env["examples"][1]["example"] == 2
+    assert env["examples"][2]["example"] == 3
+
+    # Each example's speaker labels should be uniform within the example
+    ref_spk_0 = env["examples"][0]["ref_speakers"]
+    assert all(s == "Speaker 0" for s in ref_spk_0)
+    ref_spk_1 = env["examples"][1]["ref_speakers"]
+    assert all(s == "Speaker 1" for s in ref_spk_1)
+
+    # Per-speaker metrics still present
+    assert "Speaker 0" in env["per_speaker"]
+    assert "Speaker 1" in env["per_speaker"]
+
+
+def test_run_bewer_diarized_unequal_turn_counts():
+    bewer = pytest.importorskip("bewer")
+    from tympany.bewer_eval import run_bewer_diarized
+    from tympany.diarize import SpeakerSegment
+
+    ref_segs = [
+        SpeakerSegment(0, 0, "Hello doctor", 0, 2),
+        SpeakerSegment(1, 0, "Hi", 2, 3),
+        SpeakerSegment(0, 0, "Goodbye", 3, 5),
+    ]
+    gen_segs = [
+        SpeakerSegment(0, 0, "Hello doctor", 0, 2),
+        SpeakerSegment(1, 0, "Hi", 2, 3),
+    ]
+    env = run_bewer_diarized(ref_segs, gen_segs)
+
+    # Ref has 3 turns, gen has 2 → 3 examples (last is a full deletion)
+    assert len(env["examples"]) == 3
+    assert env["examples"][2]["ref"] == "Goodbye"
+    assert env["examples"][2]["hyp"] == ""

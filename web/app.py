@@ -39,10 +39,11 @@ from starlette.middleware.sessions import SessionMiddleware
 from tympany import bewer_eval, corti
 from tympany.classify import classify_samples
 from tympany.diarize import (
-    build_word_speakers,
-    flatten_segments,
+    Turn,
+    group_segments_by_turn,
     is_diarized,
     parse_corti_transcript_json,
+    split_into_turns,
 )
 from tympany.llm import detect_provider
 from tympany.parser import from_bewer, metrics_from_bewer, reference_corpus, samples_to_payload
@@ -486,8 +487,8 @@ async def _prepare_report(
         ref_word_speakers=ref_ws,
         gen_word_speakers=gen_ws,
         diarized=diarized,
-        ref_segments=[ref_segs] if ref_segs else None,
-        gen_segments=[gen_segs] if gen_segs else None,
+        ref_segments=ref_segs if ref_segs else None,
+        gen_segments=gen_segs if gen_segs else None,
         per_speaker=per_speaker == "on" and diarized,
     )
 
@@ -496,9 +497,11 @@ async def _run_bewer(prep: _ReportInputs) -> dict:
     """Evaluate prep's rows with bewer (off the event loop), returning the envelope."""
     terms = list(_split_terms(prep.terms_content)) if prep.terms_content else None
     if prep.per_speaker and prep.ref_segments and prep.gen_segments:
+        all_ref = [s for group in prep.ref_segments for s in group]
+        all_gen = [s for group in prep.gen_segments for s in group]
         return await asyncio.to_thread(
             bewer_eval.run_bewer_diarized,
-            prep.ref_segments[0], prep.gen_segments[0],
+            all_ref, all_gen,
             normalization=prep.normalize_on, medical_terms=terms,
         )
     return await asyncio.to_thread(
@@ -1393,13 +1396,15 @@ async def _read_corti_rows(
     Optional[list],
     Optional[list],
 ]:
-    """Parse Corti diarized transcript JSON uploads into flat (ref, gen) rows.
+    """Parse Corti diarized transcript JSON uploads into per-turn (ref, gen) rows.
 
     Returns ``(rows, ref_word_speakers, gen_word_speakers, diarized,
-    ref_segments, gen_segments)``. Each Corti transcript JSON becomes one
-    example. The segment texts are flattened into a single string for bewer;
-    the per-word speaker labels and raw segments are preserved for
-    per-speaker evaluation and token tagging.
+    ref_segment_groups, gen_segment_groups)``.  Each Corti transcript is split
+    into turns (consecutive same-speaker segments); turns are paired by
+    position to produce one bewer example per turn.  ``ref_segment_groups``
+    and ``gen_segment_groups`` are ``list[list[SpeakerSegment]]`` — one list
+    of raw segments per turn — so ``classify_samples`` can run diarization
+    error detection per turn rather than across the entire transcript.
     """
     if ref_file is None or not ref_file.filename:
         raise ValueError("Upload a reference transcript JSON file.")
@@ -1430,21 +1435,37 @@ async def _read_corti_rows(
     if not gen_segments:
         raise ValueError("No transcript segments found in the generated file.")
 
-    ref_text = flatten_segments(ref_segments)
-    gen_text = flatten_segments(gen_segments)
-    if not ref_text.strip():
+    ref_turns = split_into_turns(ref_segments)
+    gen_turns = split_into_turns(gen_segments)
+
+    if not any(t.text for t in ref_turns):
         raise ValueError("Reference transcript segments contain no text.")
-    if not gen_text.strip():
+    if not any(t.text for t in gen_turns):
         raise ValueError("Generated transcript segments contain no text.")
 
-    rows: list[tuple[str, str]] = [(ref_text, gen_text)]
-    ref_ws = [build_word_speakers(ref_segments)]
-    gen_ws = [build_word_speakers(gen_segments)]
+    n = max(len(ref_turns), len(gen_turns))
+    rows: list[tuple[str, str]] = []
+    ref_ws: list[list[str]] = []
+    gen_ws: list[list[str]] = []
+    for i in range(n):
+        rt = ref_turns[i] if i < len(ref_turns) else Turn("", "")
+        gt = gen_turns[i] if i < len(gen_turns) else Turn("", "")
+        rows.append((rt.text, gt.text))
+        ref_ws.append([rt.speaker] * len(rt.text.split()) if rt.text else [])
+        gen_ws.append([gt.speaker] * len(gt.text.split()) if gt.text else [])
+
     diarized = is_diarized(ref_segments) or is_diarized(gen_segments)
+
+    ref_seg_groups = group_segments_by_turn(ref_segments)
+    gen_seg_groups = group_segments_by_turn(gen_segments)
+    while len(ref_seg_groups) < n:
+        ref_seg_groups.append([])
+    while len(gen_seg_groups) < n:
+        gen_seg_groups.append([])
 
     if len(rows) > MAX_ROWS:
         raise ValueError(f"Too many examples ({len(rows)}); the limit is {MAX_ROWS}.")
-    return rows, ref_ws, gen_ws, diarized, ref_segments, gen_segments
+    return rows, ref_ws, gen_ws, diarized, ref_seg_groups, gen_seg_groups
 
 
 async def _resolve_terms(

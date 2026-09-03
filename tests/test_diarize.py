@@ -6,12 +6,15 @@ import pytest
 
 from tympany.diarize import (
     SpeakerSegment,
+    Turn,
     build_word_speakers,
     distinct_speakers,
     flatten_segments,
+    group_segments_by_turn,
     is_diarized,
     parse_corti_transcript,
     parse_corti_transcript_json,
+    split_into_turns,
 )
 
 
@@ -185,3 +188,128 @@ def test_distinct_speakers_no_diarization():
     segments = parse_corti_transcript(NO_DIARIZ_MSG)
     speakers = distinct_speakers(segments)
     assert speakers == ["Channel 0"]
+
+
+# ---------------------------------------------------------------------------
+# split_into_turns
+# ---------------------------------------------------------------------------
+
+def test_split_into_turns_alternating_speakers():
+    segments = [
+        SpeakerSegment(0, 0, "Hello doctor", 0, 2),
+        SpeakerSegment(1, 0, "Hi there", 2, 4),
+        SpeakerSegment(0, 0, "How are you", 4, 6),
+    ]
+    turns = split_into_turns(segments)
+    assert len(turns) == 3
+    assert turns[0] == Turn("Speaker 0", "Hello doctor")
+    assert turns[1] == Turn("Speaker 1", "Hi there")
+    assert turns[2] == Turn("Speaker 0", "How are you")
+
+
+def test_split_into_turns_merges_consecutive_same_speaker():
+    segments = [
+        SpeakerSegment(0, 0, "Hello", 0, 1),
+        SpeakerSegment(0, 0, "doctor", 1, 2),
+        SpeakerSegment(1, 0, "Hi", 2, 3),
+    ]
+    turns = split_into_turns(segments)
+    assert len(turns) == 2
+    assert turns[0] == Turn("Speaker 0", "Hello doctor")
+    assert turns[1] == Turn("Speaker 1", "Hi")
+
+
+def test_split_into_turns_non_diarized_single_turn():
+    segments = [
+        SpeakerSegment(-1, 0, "Hello", 0, 1),
+        SpeakerSegment(-1, 0, "world", 1, 2),
+    ]
+    turns = split_into_turns(segments)
+    assert len(turns) == 1
+    assert turns[0] == Turn("Channel 0", "Hello world")
+
+
+def test_split_into_turns_skips_empty_segments():
+    segments = [
+        SpeakerSegment(0, 0, "Hello", 0, 1),
+        SpeakerSegment(0, 0, "", 1, 2),
+        SpeakerSegment(1, 0, "Hi", 2, 3),
+    ]
+    turns = split_into_turns(segments)
+    assert len(turns) == 2
+    assert turns[0] == Turn("Speaker 0", "Hello")
+    assert turns[1] == Turn("Speaker 1", "Hi")
+
+
+def test_split_into_turns_empty_input():
+    assert split_into_turns([]) == []
+
+
+def test_parse_streams_top_level_channel():
+    """Minimal ref format: channel at top level, no participant wrapper."""
+    data = {"type": "transcript", "data": [
+        {"transcript": "Hello", "speakerId": 0, "channel": 1},
+    ]}
+    segments = parse_corti_transcript(data)
+    assert segments[0].channel == 1
+
+
+# ---------------------------------------------------------------------------
+# group_segments_by_turn
+# ---------------------------------------------------------------------------
+
+def test_group_segments_by_turn_alternating():
+    segments = [
+        SpeakerSegment(0, 0, "Hello", 0, 1),
+        SpeakerSegment(1, 0, "Hi", 1, 2),
+        SpeakerSegment(0, 0, "Bye", 2, 3),
+    ]
+    groups = group_segments_by_turn(segments)
+    assert len(groups) == 3
+    assert [s.text for s in groups[0]] == ["Hello"]
+    assert [s.text for s in groups[1]] == ["Hi"]
+    assert [s.text for s in groups[2]] == ["Bye"]
+
+
+def test_group_segments_by_turn_merges_consecutive():
+    segments = [
+        SpeakerSegment(0, 0, "Hello", 0, 1),
+        SpeakerSegment(0, 0, "doctor", 1, 2),
+        SpeakerSegment(1, 0, "Hi", 2, 3),
+    ]
+    groups = group_segments_by_turn(segments)
+    assert len(groups) == 2
+    assert [s.text for s in groups[0]] == ["Hello", "doctor"]
+    assert [s.text for s in groups[1]] == ["Hi"]
+
+
+def test_group_segments_by_turn_skips_empty():
+    segments = [
+        SpeakerSegment(0, 0, "Hello", 0, 1),
+        SpeakerSegment(0, 0, "", 1, 2),
+        SpeakerSegment(1, 0, "Hi", 2, 3),
+    ]
+    groups = group_segments_by_turn(segments)
+    assert len(groups) == 2
+    assert [s.text for s in groups[0]] == ["Hello"]
+    assert [s.text for s in groups[1]] == ["Hi"]
+
+
+def test_group_segments_by_turn_empty():
+    assert group_segments_by_turn([]) == []
+
+
+def test_group_segments_matches_split_into_turns():
+    """group_segments_by_turn and split_into_turns must produce the same grouping."""
+    segments = [
+        SpeakerSegment(0, 0, "Hello doctor", 0, 2),
+        SpeakerSegment(1, 0, "Hi there", 2, 4),
+        SpeakerSegment(1, 0, "how are you", 4, 6),
+        SpeakerSegment(0, 0, "Goodbye", 6, 8),
+    ]
+    turns = split_into_turns(segments)
+    groups = group_segments_by_turn(segments)
+    assert len(turns) == len(groups)
+    for turn, group in zip(turns, groups):
+        assert turn.speaker == group[0].label
+        assert turn.text == " ".join(s.text.strip() for s in group)

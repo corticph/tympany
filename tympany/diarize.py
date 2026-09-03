@@ -53,7 +53,7 @@ def _parse_streams(data: dict) -> list[SpeakerSegment]:
     for seg in data.get("data", []):
         speaker_id = int(seg.get("speakerId", -1))
         participant = seg.get("participant") or {}
-        channel = int(participant.get("channel", 0))
+        channel = int(participant.get("channel", seg.get("channel", 0)))
         text = seg.get("transcript") or ""
         time = seg.get("time") or {}
         start = float(time.get("start", 0))
@@ -92,6 +92,58 @@ def parse_corti_transcript_json(raw: str) -> list[SpeakerSegment]:
     if not isinstance(data, dict):
         raise ValueError("Expected a JSON object or array of transcript segments.")
     return parse_corti_transcript(data)
+
+
+@dataclass(frozen=True)
+class Turn:
+    """A consecutive run of same-speaker segments treated as one evaluation unit."""
+    speaker: str
+    text: str
+
+
+def split_into_turns(segments: list[SpeakerSegment]) -> list[Turn]:
+    """Group consecutive same-speaker segments into turns.
+
+    A *turn* is a maximal run of segments whose :attr:`SpeakerSegment.label`
+    is the same.  Non-diarized transcripts (all ``speakerId == -1``) produce a
+    single turn, preserving the old flat-evaluation behaviour.
+    """
+    turns: list[Turn] = []
+    cur_speaker = ""
+    cur_parts: list[str] = []
+    for seg in segments:
+        if not seg.text.strip():
+            continue
+        if seg.label != cur_speaker:
+            if cur_parts:
+                turns.append(Turn(cur_speaker, " ".join(cur_parts)))
+            cur_speaker = seg.label
+            cur_parts = [seg.text.strip()]
+        else:
+            cur_parts.append(seg.text.strip())
+    if cur_parts:
+        turns.append(Turn(cur_speaker, " ".join(cur_parts)))
+    return turns
+
+
+def group_segments_by_turn(segments: list[SpeakerSegment]) -> list[list[SpeakerSegment]]:
+    """Group consecutive same-speaker segments into lists, matching ``split_into_turns``.
+
+    Returns one list of raw segments per turn (skipping empty-text segments).
+    The grouping matches :func:`split_into_turns` so callers can correlate
+    per-turn text with the underlying segments for diarization error analysis.
+    """
+    groups: list[list[SpeakerSegment]] = []
+    cur_speaker = ""
+    for seg in segments:
+        if not seg.text.strip():
+            continue
+        if seg.label != cur_speaker:
+            groups.append([seg])
+            cur_speaker = seg.label
+        else:
+            groups[-1].append(seg)
+    return groups
 
 
 def flatten_segments(segments: list[SpeakerSegment]) -> str:
