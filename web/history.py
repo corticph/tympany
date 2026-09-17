@@ -89,9 +89,10 @@ def normalize_edits(rows: list[dict]) -> list[dict]:
         if isinstance(excluded, str):
             excluded = excluded.lower() == "true"
         elif excluded is None:
-            # Auto-exclude low-risk items, plus compound boundary artifacts
-            # (tokenization split/merge) which are not edits worth surfacing.
-            excluded = risk == "low" or category in ("compound_split", "compound_merge")
+            # Auto-exclude low-risk items only. Compound boundary
+            # differences (split/merge) are not auto-excluded — they
+            # may reflect real segmentation issues worth reviewing.
+            excluded = risk == "low"
         flagged = row.get("flagged")
         if isinstance(flagged, str):
             flagged = flagged.lower() == "true"

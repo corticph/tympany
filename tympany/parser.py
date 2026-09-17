@@ -18,12 +18,21 @@ from dataclasses import dataclass
 class Token:
     cls: str   # "ok" | "sub" | "del" | "ins"
     text: str
+    left_compound: bool = False   # token is the left part of a split compound
+    right_compound: bool = False  # token is the right part of a split compound
+
+    @property
+    def is_compound_partial(self) -> bool:
+        return self.left_compound or self.right_compound
 
 
 @dataclass(frozen=True)
 class DiffGroup:
     ref: tuple[str, ...]
     pred: tuple[str, ...]
+    # True when every op in this group is a compound-boundary diff — the
+    # ref and pred text is identical and only the compound markers differ.
+    compound_only: bool = False
 
     @property
     def op(self) -> str:
@@ -53,8 +62,14 @@ def samples_to_payload(samples: list[Sample]) -> list[dict]:
     return [
         {
             "example": s.example_num,
-            "ref_tokens": [{"cls": t.cls, "text": t.text} for t in s.ref_tokens],
-            "pred_tokens": [{"cls": t.cls, "text": t.text} for t in s.pred_tokens],
+            "ref_tokens": [
+                {"cls": t.cls, "text": t.text, "left_compound": t.left_compound, "right_compound": t.right_compound}
+                for t in s.ref_tokens
+            ],
+            "pred_tokens": [
+                {"cls": t.cls, "text": t.text, "left_compound": t.left_compound, "right_compound": t.right_compound}
+                for t in s.pred_tokens
+            ],
         }
         for s in samples
     ]
@@ -75,31 +90,62 @@ def from_bewer(envelope: dict, file_stem: str = "report") -> list[Sample]:
         diffs: list[DiffGroup] = []
         cur_ref: list[str] = []
         cur_pred: list[str] = []
+        # Track whether every op in the current diff group is a compound-only
+        # boundary difference (ref text == hyp text, only compound markers).
+        cur_ref_ops: list[dict] = []
+        cur_pred_ops: list[dict] = []
 
         def _flush() -> None:
             if cur_ref or cur_pred:
-                diffs.append(DiffGroup(tuple(cur_ref), tuple(cur_pred)))
+                # compound_only: every paired (ref, pred) token has identical
+                # text and differs only in compound markers. Only applies when
+                # there are tokens on both sides (substitute groups), not to
+                # insert-only or delete-only groups.
+                paired = [
+                    (r, p) for r, p in zip(cur_ref_ops, cur_pred_ops)
+                    if r.get("text") is not None and p.get("text") is not None
+                ]
+                compound_only = (
+                    bool(paired)
+                    and all(r["text"] == p["text"] for r, p in paired)
+                    and any(
+                        r.get("left_compound") or r.get("right_compound")
+                        or p.get("left_compound") or p.get("right_compound")
+                        for r, p in paired
+                    )
+                )
+                diffs.append(DiffGroup(tuple(cur_ref), tuple(cur_pred), compound_only=compound_only))
                 cur_ref.clear()
                 cur_pred.clear()
+                cur_ref_ops.clear()
+                cur_pred_ops.clear()
 
         for op in ex.get("ops", []):
             op_type = (op.get("type") or "").upper()
             ref, hyp = op.get("ref"), op.get("hyp")
+            hyp_left = bool(op.get("hyp_left_partial", False))
+            hyp_right = bool(op.get("hyp_right_partial", False))
+            ref_left = bool(op.get("ref_left_partial", False))
+            ref_right = bool(op.get("ref_right_partial", False))
             if op_type == "MATCH":
                 _flush()
-                ref_tokens.append(Token("ok", ref))
-                pred_tokens.append(Token("ok", hyp))
+                ref_tokens.append(Token("ok", ref, left_compound=ref_left, right_compound=ref_right))
+                pred_tokens.append(Token("ok", hyp, left_compound=hyp_left, right_compound=hyp_right))
             elif op_type == "SUBSTITUTE":
-                ref_tokens.append(Token("sub", ref))
-                pred_tokens.append(Token("sub", hyp))
+                ref_tokens.append(Token("sub", ref, left_compound=ref_left, right_compound=ref_right))
+                pred_tokens.append(Token("sub", hyp, left_compound=hyp_left, right_compound=hyp_right))
                 cur_ref.append(ref)
                 cur_pred.append(hyp)
+                cur_ref_ops.append({"text": ref, "left_compound": ref_left, "right_compound": ref_right})
+                cur_pred_ops.append({"text": hyp, "left_compound": hyp_left, "right_compound": hyp_right})
             elif op_type == "DELETE":
-                ref_tokens.append(Token("del", ref))
+                ref_tokens.append(Token("del", ref, left_compound=ref_left, right_compound=ref_right))
                 cur_ref.append(ref)
+                cur_ref_ops.append({"text": ref, "left_compound": ref_left, "right_compound": ref_right})
             elif op_type == "INSERT":
-                pred_tokens.append(Token("ins", hyp))
+                pred_tokens.append(Token("ins", hyp, left_compound=hyp_left, right_compound=hyp_right))
                 cur_pred.append(hyp)
+                cur_pred_ops.append({"text": hyp, "left_compound": hyp_left, "right_compound": hyp_right})
         _flush()
 
         samples.append(Sample(

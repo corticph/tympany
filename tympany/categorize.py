@@ -62,6 +62,7 @@ _CATEGORY_META: dict[str, tuple[str, str]] = {
     "spelling_close":         ("context_dependent",       "medium"),
     "compound_split":         ("context_dependent",       "medium"),
     "compound_merge":         ("context_dependent",       "medium"),
+    "compound_boundary":      ("context_dependent",       "medium"),
     "misrecognition":         ("misrecognition",          "high"),
     "medication_or_device":   ("misrecognition",          "high"),
     "pure_insertion":         ("misrecognition",          "medium"),
@@ -205,6 +206,41 @@ def _ratio(a: str, b: str) -> float:
 # ---------------------------------------------------------------------------
 
 Rule = Callable[[tuple[str, ...], tuple[str, ...]], Optional[tuple[str, str]]]
+
+
+def rule_compound_boundary(ref, pred):
+    """Detect compound split/merge by concatenated string similarity.
+
+    Fires when the ref and pred tokens, concatenated and lowercased, are
+    close enough (≥0.85 ratio) that the difference is a compound boundary
+    rather than a genuine misrecognition.
+    """
+    if not ref or not pred or (len(ref) == 1 and len(pred) == 1):
+        return None
+    joined_ref = _normalized_concat(ref)
+    joined_pred = _normalized_concat(pred)
+    if _ratio(joined_ref, joined_pred) >= 0.85:
+        label = "compound_split" if len(ref) < len(pred) else "compound_merge"
+        return label, f"{list(ref)} ↔ {list(pred)}"
+    return None
+
+
+def rule_compound_only_boundary(ref, pred):
+    """Detect identical-text substitutions that differ only in compound markers.
+
+    These occur when ErrorAlign reports a SUBSTITUTE op where ref == hyp but
+    the hyp carries a compound-boundary marker (left/right partial). The text
+    is identical — the only difference is whether the token is part of a
+    compound word (e.g., "Früh-" in ref vs "Früh" as left part of "Frühbindestrich"
+    in pred). Without this rule they fall through to spelling_close (distance 0,
+    similarity 1.00) and get misclassified as context_dependent by the LLM.
+    """
+    if not ref or not pred:
+        return None
+    # Only fires for 1:1 substitutions where the text is identical
+    if len(ref) == len(pred) and all(r == p for r, p in zip(ref, pred)):
+        return "compound_boundary", f"{list(ref)} ↔ {list(pred)}"
+    return None
 
 
 def rule_pure_insertion(ref, pred):
@@ -381,6 +417,7 @@ RULES: tuple[Rule, ...] = (
     rule_year_format,
     rule_number_format,
     rule_abbreviation,
+    rule_compound_only_boundary,
     rule_compound_boundary,
     rule_medication_or_device,
     rule_latin_greek_spelling,
