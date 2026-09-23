@@ -208,6 +208,9 @@ def _merge_compound_ops(ops: list[dict]) -> list[dict]:
                 if prev_ref_right and cur_ref_left:
                     prev["ref"] = (prev.get("ref") or "") + (op.get("ref") or "")
                     prev["ref_right_partial"] = op.get("ref_right_partial", False)
+                elif op.get("ref"):
+                    # Hyp side is compound but ref side isn't — preserve orphaned ref
+                    prev["ref"] = (prev.get("ref") or "") + " " + op["ref"]
                 continue
         merged.append(dict(op))
     return merged
