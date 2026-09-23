@@ -53,17 +53,28 @@ def run_bewer(
     is recorded in settings; bewer applies its default standardisation pipeline.
     """
     try:
-        from bewer import Dataset, Vocabulary
+        from bewer import Dataset
     except ImportError as exc:  # pragma: no cover - dependency is declared
         raise BewerError("The 'bewer' package is not installed.") from exc
+
+    # Vocabulary was added in an unreleased bewer version. Fall back to the
+    # old add_key_term_list API when it's not available.
+    try:
+        from bewer import Vocabulary
+        _has_vocabulary = True
+    except ImportError:
+        _has_vocabulary = False
 
     ds = Dataset()
     for ref, gen in rows:
         ds.add(ref=ref, hyp=gen)
     if medical_terms:
-        vocab = Vocabulary(name="medical")
-        vocab.add_terms(list(medical_terms))
-        ds.add_vocabulary(vocab)
+        if _has_vocabulary:
+            vocab = Vocabulary(name="medical")
+            vocab.add_terms(list(medical_terms))
+            ds.add_vocabulary(vocab)
+        elif hasattr(ds, "add_key_term_list"):
+            ds.add_key_term_list("medical", list(medical_terms))
 
     metric_kwargs = {"normalized": bool(normalization)}
 
