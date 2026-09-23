@@ -88,7 +88,7 @@ def run_bewer(
     mtr: Optional[float] = None
     if medical_terms:
         try:
-            mtr = ds.metrics.get("ktf")(vocab="medical", normalized=bool(normalization)).value
+            mtr = ds.metrics.get("ktr")(vocab="medical", normalized=bool(normalization)).value
         except Exception:
             mtr = None  # alpha API; degrade gracefully rather than fail the run
 
