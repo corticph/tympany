@@ -34,6 +34,18 @@ _CLASSIFICATIONS = [
 ]
 _RISK_LEVELS = ["high", "medium", "low"]
 
+_CLS_RISK = {
+    "formatting_error": "low",
+    "replacement_candidate": "low",
+    "context_dependent": "medium",
+    "misrecognition": "high",
+}
+
+
+def _derive_risk(classification: str) -> str:
+    """Derive risk_level from classification — single source of truth."""
+    return _CLS_RISK.get(classification, "high")
+
 
 def _data_dir() -> Path:
     return data_dir()
@@ -73,6 +85,7 @@ def _now_iso() -> str:
 def normalize_edits(rows: list[dict]) -> list[dict]:
     """Turn raw CSV rows into edit records with description/excluded defaults.
 
+    risk_level is derived from classification — never stored independently.
     Mirrors the client-side defaults in results.html so a freshly-saved
     analysis renders identically to today's first render:
       - description defaults to category with underscores spaced out
@@ -81,7 +94,8 @@ def normalize_edits(rows: list[dict]) -> list[dict]:
     out: list[dict] = []
     for row in rows:
         category = row.get("category", "") or ""
-        risk = row.get("risk_level", "") or ""
+        classification = row.get("classification", "") or ""
+        risk = _derive_risk(classification)
         description = row.get("description")
         if description is None or description == "":
             description = category.replace("_", " ")
@@ -89,9 +103,6 @@ def normalize_edits(rows: list[dict]) -> list[dict]:
         if isinstance(excluded, str):
             excluded = excluded.lower() == "true"
         elif excluded is None:
-            # Auto-exclude low-risk items only. Compound boundary
-            # differences (split/merge) are not auto-excluded — they
-            # may reflect real segmentation issues worth reviewing.
             excluded = risk == "low"
         flagged = row.get("flagged")
         if isinstance(flagged, str):
@@ -103,7 +114,7 @@ def normalize_edits(rows: list[dict]) -> list[dict]:
             "gen": row.get("gen", ""),
             "op": row.get("op", ""),
             "category": category,
-            "classification": row.get("classification", ""),
+            "classification": classification,
             "risk_level": risk,
             "replacement_candidate": row.get("replacement_candidate", ""),
             "detail": row.get("detail", ""),

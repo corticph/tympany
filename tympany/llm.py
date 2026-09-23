@@ -12,10 +12,11 @@ The agent returns a structured JSON object:
   {
     "category": "<category string>",
     "classification": "<formatting_error|replacement_candidate|context_dependent|misrecognition>",
-    "risk_level": "<low|medium|high>",
-    "replacement_candidate": <true|false>,
     "reasoning": "<one sentence>"
   }
+
+Risk level and replacement_candidate are derived from the classification
+and category server-side — the LLM does not set them independently.
 """
 
 from __future__ import annotations
@@ -51,8 +52,6 @@ _VALID_CLASSIFICATIONS = {
     "formatting_error", "replacement_candidate", "context_dependent", "misrecognition",
 }
 
-_VALID_RISKS = {"low", "medium", "high"}
-
 # Only upgrade edits that the rule chain flagged as uncertain
 _ELIGIBLE_CLASSIFICATIONS = {"misrecognition", "context_dependent"}
 
@@ -82,16 +81,12 @@ def _parse_response(raw: str, original: Edit) -> Edit:
 
     category = data.get("category", "")
     classification = data.get("classification", "")
-    risk_level = data.get("risk_level", "")
-    is_candidate = bool(data.get("replacement_candidate", False))
     reasoning = str(data.get("reasoning", ""))
 
     if category not in _VALID_CATEGORIES:
         category = original.category
     if classification not in _VALID_CLASSIFICATIONS:
         classification = original.classification
-    if risk_level not in _VALID_RISKS:
-        risk_level = original.risk_level
 
     detail = f"[LLM] {reasoning}" if reasoning else "[LLM]"
     return _EditWithLLM(
@@ -100,17 +95,20 @@ def _parse_response(raw: str, original: Edit) -> Edit:
         category=category,
         detail=detail,
         _classification=classification,
-        _risk_level=risk_level,
-        _is_replacement_candidate=is_candidate,
     )
 
 
 # ---------------------------------------------------------------------------
-# Extended Edit subclass that stores LLM-overridden fields
+# Extended Edit subclass that stores LLM-overridden classification
 # ---------------------------------------------------------------------------
 
 class _EditWithLLM(Edit):
-    """Edit whose classification/risk/candidate fields come from LLM output."""
+    """Edit whose classification comes from LLM output.
+
+    Only classification is overridden — risk_level is derived from
+    classification via _CLS_RISK, and is_replacement_candidate is derived
+    from category, exactly as in the base Edit class.
+    """
 
     def __init__(
         self,
@@ -120,28 +118,16 @@ class _EditWithLLM(Edit):
         category: str,
         detail: str,
         _classification: str,
-        _risk_level: str,
-        _is_replacement_candidate: bool,
     ) -> None:
         object.__setattr__(self, "ref", ref)
         object.__setattr__(self, "pred", pred)
         object.__setattr__(self, "category", category)
         object.__setattr__(self, "detail", detail)
-        object.__setattr__(self, "_classification", _classification)
-        object.__setattr__(self, "_risk_level", _risk_level)
-        object.__setattr__(self, "_is_replacement_candidate", _is_replacement_candidate)
+        object.__setattr__(self, "_classification_override", _classification)
 
     @property
     def classification(self) -> str:
-        return self._classification
-
-    @property
-    def risk_level(self) -> str:
-        return self._risk_level
-
-    @property
-    def is_replacement_candidate(self) -> bool:
-        return self._is_replacement_candidate
+        return self._classification_override
 
 
 # ---------------------------------------------------------------------------

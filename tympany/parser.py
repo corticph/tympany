@@ -75,13 +75,61 @@ def samples_to_payload(samples: list[Sample]) -> list[dict]:
     ]
 
 
+# ---------------------------------------------------------------------------
+# Compound-merge helpers
+#
+# ErrorAlign can split a single word into multiple ops at the character level
+# (e.g. "cardiac" → SUB "card" [right_compound] + INSERT "iac" [left_compound]).
+# The compound markers say "join without a space." Without merging, the error
+# list shows "card iac" instead of "cardiac" and the adjusted-WER re-run
+# evaluates the wrong text. These helpers merge compound-adjacent tokens at
+# both the token-stream and DiffGroup-accumulation level.
+# ---------------------------------------------------------------------------
+
+def _push_token(
+    tokens: list[Token],
+    cls: str,
+    text: str,
+    left_compound: bool,
+    right_compound: bool,
+) -> None:
+    """Append (or compound-merge) a token into the token stream."""
+    if tokens and tokens[-1].right_compound and left_compound:
+        prev = tokens[-1]
+        tokens[-1] = Token(
+            prev.cls, prev.text + text,
+            left_compound=prev.left_compound,
+            right_compound=right_compound,
+        )
+    else:
+        tokens.append(Token(cls, text, left_compound=left_compound, right_compound=right_compound))
+
+
+def _push_cur(
+    cur: list[str],
+    cur_ops: list[dict],
+    text: str,
+    left_compound: bool,
+    right_compound: bool,
+) -> None:
+    """Append (or compound-merge) a token into the current DiffGroup accumulation."""
+    if cur_ops and cur_ops[-1].get("right_compound") and left_compound:
+        cur[-1] += text
+        cur_ops[-1]["right_compound"] = right_compound
+    else:
+        cur.append(text)
+        cur_ops.append({"text": text, "left_compound": left_compound, "right_compound": right_compound})
+
+
 def from_bewer(envelope: dict, file_stem: str = "report") -> list[Sample]:
     """Map a bewer JSON envelope (see tympany.bewer_eval) into Samples.
 
     Each alignment op becomes ref/pred Tokens (MATCH→ok, SUBSTITUTE→sub,
     DELETE→del, INSERT→ins); contiguous non-match ops are grouped into
-    DiffGroups, exactly the shape the categorizer consumes. This is the
-    This is how Tympany turns a bewer evaluation into reviewable diffs.
+    DiffGroups, exactly the shape the categorizer consumes. Compound-split
+    tokens (marked by left/right compound flags) are merged back into single
+    tokens so that "card"+"iac" becomes "cardiac" in both the token stream and
+    the DiffGroup.
     """
     samples: list[Sample] = []
     for ex in envelope.get("examples", []):
@@ -90,17 +138,11 @@ def from_bewer(envelope: dict, file_stem: str = "report") -> list[Sample]:
         diffs: list[DiffGroup] = []
         cur_ref: list[str] = []
         cur_pred: list[str] = []
-        # Track whether every op in the current diff group is a compound-only
-        # boundary difference (ref text == hyp text, only compound markers).
         cur_ref_ops: list[dict] = []
         cur_pred_ops: list[dict] = []
 
         def _flush() -> None:
             if cur_ref or cur_pred:
-                # compound_only: every paired (ref, pred) token has identical
-                # text and differs only in compound markers. Only applies when
-                # there are tokens on both sides (substitute groups), not to
-                # insert-only or delete-only groups.
                 paired = [
                     (r, p) for r, p in zip(cur_ref_ops, cur_pred_ops)
                     if r.get("text") is not None and p.get("text") is not None
@@ -129,23 +171,19 @@ def from_bewer(envelope: dict, file_stem: str = "report") -> list[Sample]:
             ref_right = bool(op.get("ref_right_partial", False))
             if op_type == "MATCH":
                 _flush()
-                ref_tokens.append(Token("ok", ref, left_compound=ref_left, right_compound=ref_right))
-                pred_tokens.append(Token("ok", hyp, left_compound=hyp_left, right_compound=hyp_right))
+                _push_token(ref_tokens, "ok", ref, ref_left, ref_right)
+                _push_token(pred_tokens, "ok", hyp, hyp_left, hyp_right)
             elif op_type == "SUBSTITUTE":
-                ref_tokens.append(Token("sub", ref, left_compound=ref_left, right_compound=ref_right))
-                pred_tokens.append(Token("sub", hyp, left_compound=hyp_left, right_compound=hyp_right))
-                cur_ref.append(ref)
-                cur_pred.append(hyp)
-                cur_ref_ops.append({"text": ref, "left_compound": ref_left, "right_compound": ref_right})
-                cur_pred_ops.append({"text": hyp, "left_compound": hyp_left, "right_compound": hyp_right})
+                _push_token(ref_tokens, "sub", ref, ref_left, ref_right)
+                _push_token(pred_tokens, "sub", hyp, hyp_left, hyp_right)
+                _push_cur(cur_ref, cur_ref_ops, ref, ref_left, ref_right)
+                _push_cur(cur_pred, cur_pred_ops, hyp, hyp_left, hyp_right)
             elif op_type == "DELETE":
-                ref_tokens.append(Token("del", ref, left_compound=ref_left, right_compound=ref_right))
-                cur_ref.append(ref)
-                cur_ref_ops.append({"text": ref, "left_compound": ref_left, "right_compound": ref_right})
+                _push_token(ref_tokens, "del", ref, ref_left, ref_right)
+                _push_cur(cur_ref, cur_ref_ops, ref, ref_left, ref_right)
             elif op_type == "INSERT":
-                pred_tokens.append(Token("ins", hyp, left_compound=hyp_left, right_compound=hyp_right))
-                cur_pred.append(hyp)
-                cur_pred_ops.append({"text": hyp, "left_compound": hyp_left, "right_compound": hyp_right})
+                _push_token(pred_tokens, "ins", hyp, hyp_left, hyp_right)
+                _push_cur(cur_pred, cur_pred_ops, hyp, hyp_left, hyp_right)
         _flush()
 
         samples.append(Sample(

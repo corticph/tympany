@@ -57,33 +57,31 @@ difference between them.
 Respond ONLY with a JSON object — no extra text, no markdown fences.
 
 Classification rules:
-- "formatting_error" (low risk): difference is purely numeric or date formatting \
+- "formatting_error": difference is purely numeric or date formatting \
 (e.g. "3" vs "three", "04/19" vs "April 19").
-- "replacement_candidate" (low risk): difference is a known abbreviation, \
+- "replacement_candidate": difference is a known abbreviation, \
 acronym, roman numeral, or verbalized command that could be fixed by adding a \
 replacement rule (e.g. "bp" vs "blood pressure", "tia" vs "transient ischemic attack", \
 "nkda" vs "no known drug allergies").
-- "context_dependent" (medium risk): difference is a close spelling variant, \
+- "context_dependent": difference is a close spelling variant, \
 compound boundary, or Latin/Greek alternate spelling where clinical meaning is \
 probably preserved but human review is warranted.
-- "misrecognition" (high risk): the speech recognition produced something \
+- "misrecognition": the speech recognition produced something \
 clinically different or meaningless — a real error that changes meaning.
 
 Pay special attention to medical entities — medications, dosages, devices, \
 conditions, procedures, anatomy, and lab values. When either side of the pair \
 is such an entity and the other side changes its identity or value (e.g. a \
 different drug, a wrong dose, a different condition), classify it as category \
-"medication_or_device" with classification "misrecognition" and risk_level \
-"high", since these errors are the most clinically dangerous. Only treat a \
-medical-entity difference as lower risk when it is clearly a benign formatting, \
-abbreviation, or spelling variant of the SAME entity.
+"medication_or_device" with classification "misrecognition", since these \
+errors are the most clinically dangerous. Only treat a medical-entity \
+difference as lower risk when it is clearly a benign formatting, abbreviation, \
+or spelling variant of the SAME entity.
 
 Return this exact JSON structure:
 {
   "category": "<one of the category values>",
   "classification": "<formatting_error|replacement_candidate|context_dependent|misrecognition>",
-  "risk_level": "<low|medium|high>",
-  "replacement_candidate": <true|false>,
   "reasoning": "<one sentence>"
 }
 

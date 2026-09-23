@@ -53,7 +53,7 @@ def run_bewer(
     is recorded in settings; bewer applies its default standardisation pipeline.
     """
     try:
-        from bewer import Dataset
+        from bewer import Dataset, Vocabulary
     except ImportError as exc:  # pragma: no cover - dependency is declared
         raise BewerError("The 'bewer' package is not installed.") from exc
 
@@ -61,7 +61,9 @@ def run_bewer(
     for ref, gen in rows:
         ds.add(ref=ref, hyp=gen)
     if medical_terms:
-        ds.add_key_term_list("medical", list(medical_terms))
+        vocab = Vocabulary(name="medical")
+        vocab.add_terms(list(medical_terms))
+        ds.add_vocabulary(vocab)
 
     metric_kwargs = {"normalized": bool(normalization)}
 
@@ -72,7 +74,6 @@ def run_bewer(
     except Exception as exc:
         raise BewerError(f"bewer evaluation failed: {exc}") from exc
 
-    # Medical Term Recall ≈ bewer's key-term-found metric over the registered list.
     mtr: Optional[float] = None
     if medical_terms:
         try:
@@ -80,17 +81,24 @@ def run_bewer(
         except Exception:
             mtr = None  # alpha API; degrade gracefully rather than fail the run
 
+    # Collect per-example alignment ops (bewer a17 used get_example_metric,
+    # a18+ uses iteration — support both).
+    per_example_ops: list[list[dict]] = []
+    if hasattr(align, "get_example_metric"):
+        for i in range(len(rows)):
+            ex = ds.examples[i]
+            per_example_ops.append([op.to_dict() for op in align.get_example_metric(ex).alignment])
+    else:
+        for em in align:
+            per_example_ops.append([op.to_dict() for op in em.alignment])
+
     examples = []
     for i, (ref, gen) in enumerate(rows):
-        ex = ds.examples[i]
-        ops = [op.to_dict() for op in align.get_example_metric(ex).alignment]
+        ops = per_example_ops[i] if i < len(per_example_ops) else []
         entry = {"example": i + 1, "ref": ref, "hyp": gen, "ops": ops}
-        # Record where bewer located each key term (as token-index [start, stop)
-        # slices, aligned 1:1 with the ops' tokens) so the report can box exactly
-        # the terms MTR counts — no second, divergent matcher. Best-effort: bewer
-        # is alpha, so degrade to no highlighting rather than failing the run.
         if medical_terms:
             try:
+                ex = ds.examples[i]
                 entry["ref_key_terms"] = [
                     [s.start, s.stop]
                     for s in ex.ref.get_key_term_matches(
