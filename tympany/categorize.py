@@ -1,25 +1,28 @@
 """Rule-based categorization of diff groups.
 
-Each diff group is classified into a category, then mapped to:
+Each diff group is classified into a category, then mapped to a
+classification. Risk level is derived from the classification via a
+single lookup table — it is not stored independently.
 
     classification  — one of: formatting_error | replacement_candidate |
                                context_dependent | misrecognition
-    risk_level      — low | medium | high
-    replacement_candidate — True if the error looks like a fixable STT
-                            replacement/command rule
+    risk_level      — derived: low | medium | high (from classification)
+    replacement_candidate — derived from category (edge case for
+                             spelling_close + abbreviation)
 
-Category → classification → risk mapping
------------------------------------------
-formatting_error   (low risk):
+Category → classification mapping
+---------------------------------
+formatting_error:
     number_format, date_format, year_format
 
-replacement_candidate  (low risk):
+replacement_candidate:
     abbreviation_expansion, roman_numeral, ordinal_format, formatting_marker
 
-context_dependent  (medium/high risk — flagged for human review):
-    latin_greek_spelling, spelling_close, compound_split, compound_merge
+context_dependent:
+    latin_greek_spelling, spelling_close, compound_split, compound_merge,
+    compound_boundary
 
-misrecognition  (medium/high risk — true errors):
+misrecognition:
     misrecognition, medication_or_device, pure_insertion, pure_deletion
 """
 
@@ -46,27 +49,35 @@ from .parser import DiffGroup
 
 
 # ---------------------------------------------------------------------------
-# Classification and risk tables
+# Classification table — single source of truth
 # ---------------------------------------------------------------------------
 
-_CATEGORY_META: dict[str, tuple[str, str]] = {
-    # category: (classification, risk_level)
-    "number_format":          ("formatting_error",        "low"),
-    "date_format":            ("formatting_error",        "low"),
-    "year_format":            ("formatting_error",        "low"),
-    "abbreviation_expansion": ("replacement_candidate",   "low"),
-    "roman_numeral":          ("replacement_candidate",   "low"),
-    "ordinal_format":         ("replacement_candidate",   "low"),
-    "formatting_marker":      ("replacement_candidate",   "low"),
-    "latin_greek_spelling":   ("context_dependent",       "medium"),
-    "spelling_close":         ("context_dependent",       "medium"),
-    "compound_split":         ("context_dependent",       "medium"),
-    "compound_merge":         ("context_dependent",       "medium"),
-    "compound_boundary":      ("context_dependent",       "medium"),
-    "misrecognition":         ("misrecognition",          "high"),
-    "medication_or_device":   ("misrecognition",          "high"),
-    "pure_insertion":         ("misrecognition",          "medium"),
-    "pure_deletion":          ("misrecognition",          "medium"),
+# category → classification
+_CATEGORY_TO_CLS: dict[str, str] = {
+    "number_format":          "formatting_error",
+    "date_format":            "formatting_error",
+    "year_format":            "formatting_error",
+    "abbreviation_expansion": "replacement_candidate",
+    "roman_numeral":          "replacement_candidate",
+    "ordinal_format":         "replacement_candidate",
+    "formatting_marker":      "replacement_candidate",
+    "latin_greek_spelling":   "context_dependent",
+    "spelling_close":         "context_dependent",
+    "compound_split":         "context_dependent",
+    "compound_merge":         "context_dependent",
+    "compound_boundary":      "context_dependent",
+    "misrecognition":         "misrecognition",
+    "medication_or_device":   "misrecognition",
+    "pure_insertion":         "misrecognition",
+    "pure_deletion":          "misrecognition",
+}
+
+# classification → risk_level (derived, never stored independently)
+_CLS_RISK: dict[str, str] = {
+    "formatting_error":      "low",
+    "replacement_candidate": "low",
+    "context_dependent":     "medium",
+    "misrecognition":        "high",
 }
 
 
@@ -91,24 +102,21 @@ class Edit:
 
     @property
     def classification(self) -> str:
-        return _CATEGORY_META.get(self.category, ("misrecognition", "high"))[0]
+        return _CATEGORY_TO_CLS.get(self.category, "misrecognition")
 
     @property
     def risk_level(self) -> str:
-        return _CATEGORY_META.get(self.category, ("misrecognition", "high"))[1]
+        return _CLS_RISK.get(self.classification, "high")
 
     @property
     def is_replacement_candidate(self) -> bool:
         """True when this edit is a consistent mapping that could be codified
         as an STT replacement or command rule."""
         cat = self.category
-        # Explicit replacement_candidate categories
         if cat in ("abbreviation_expansion", "roman_numeral", "ordinal_format"):
             return True
-        # Formatting differences with a clear ref→pred mapping
         if cat in ("number_format", "date_format", "year_format"):
             return True
-        # A close spelling sub where one side is an abbreviation
         if cat == "spelling_close" and (
             any(t in SINGLE_TOKEN_ABBREVS for t in self.ref)
             or any(t in SINGLE_TOKEN_ABBREVS for t in self.pred)
@@ -350,7 +358,7 @@ def rule_abbreviation(ref, pred):
 
 
 def rule_compound_boundary(ref, pred):
-    if not ref or not pred or (len(ref) == 1 and len(pred) == 1):
+    if not ref or not pred:
         return None
     joined_ref = _normalized_concat(ref)
     joined_pred = _normalized_concat(pred)
@@ -503,4 +511,17 @@ def _split_group(group: DiffGroup) -> list[tuple[tuple[str, ...], tuple[str, ...
 def categorize_group(
     group: DiffGroup, medical_terms: frozenset[str] = frozenset()
 ) -> list[Edit]:
-    return [classify(r, p, medical_terms) for r, p in _split_group(group)]
+    """Classify a diff group, preserving multi-token context when possible.
+
+    Try the full group first — multi-token rules (number_format,
+    compound_boundary) need the complete token sequence. If the group
+    classifies as misrecognition and is an equal-length substitution,
+    fall back to per-position splitting so each token gets its own
+    classification.
+    """
+    group_edit = classify(group.ref, group.pred, medical_terms)
+    if group_edit.category != "misrecognition":
+        return [group_edit]
+    if len(group.ref) == len(group.pred) and len(group.ref) > 1 and group.ref and group.pred:
+        return [classify((r,), (p,), medical_terms) for r, p in zip(group.ref, group.pred)]
+    return [group_edit]

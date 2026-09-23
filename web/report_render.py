@@ -187,9 +187,37 @@ def _wrap(columns: list[dict]) -> list[list[int]]:
     return groups
 
 
+def _merge_compound_ops(ops: list[dict]) -> list[dict]:
+    """Merge compound-adjacent ops so that split words like "card"+"iac"
+    render as "cardiac" in a single column instead of two separate columns."""
+    merged: list[dict] = []
+    for op in ops:
+        prev = merged[-1] if merged else None
+        if prev is not None:
+            prev_hyp_right = prev.get("hyp_right_partial", False)
+            prev_ref_right = prev.get("ref_right_partial", False)
+            cur_hyp_left = op.get("hyp_left_partial", False)
+            cur_ref_left = op.get("ref_left_partial", False)
+            # Merge if the previous hyp/ref ends a compound and the current
+            # hyp/ref continues it. ErrorAlign splits a single word into
+            # SUBSTITUTE (right_compound) + INSERT (left_compound), or
+            # SUBSTITUTE (right_compound) + SUBSTITUTE (left_compound).
+            if prev_hyp_right and cur_hyp_left:
+                prev["hyp"] = (prev.get("hyp") or "") + (op.get("hyp") or "")
+                prev["hyp_right_partial"] = op.get("hyp_right_partial", False)
+                if prev_ref_right and cur_ref_left:
+                    prev["ref"] = (prev.get("ref") or "") + (op.get("ref") or "")
+                    prev["ref_right_partial"] = op.get("ref_right_partial", False)
+                continue
+        merged.append(dict(op))
+    return merged
+
+
 def _example_lines(ex: dict, fallback_terms: list[tuple[str, ...]]) -> list[dict]:
     """Build numbered {num, ref, gen} alignment lines for one example."""
-    columns = [col for col in (_column(op) for op in ex.get("ops") or []) if col is not None]
+    raw_ops = ex.get("ops") or []
+    ops = _merge_compound_ops(raw_ops)
+    columns = [col for col in (_column(op) for op in ops) if col is not None]
     if not columns:
         return []
     line_groups = _wrap(columns)
